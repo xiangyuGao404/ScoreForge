@@ -382,16 +382,16 @@ frontend/
 
 ### 小米 TokenPlan API 接入 + 联调准备
 
-**目标**：替换 Mock AI 服务，接入真实 Anthropic 兼容接口（小米 TokenPlan），完成联调准备。
+**目标**：替换 Mock AI 服务，接入真实小米 TokenPlan API，完成联调准备。
 
 #### AI 服务接入
 
 | 项目 | 说明 |
 |------|------|
-| **API 地址** | `https://token-plan-cn.xiaomimimo.com/anthropic` |
+| **API 地址** | `https://token-plan-cn.xiaomimimo.com/v1` |
 | **鉴权方式** | Bearer Token（Header: `Authorization: Bearer <Token>`） |
-| **模型** | `claude-3-5-sonnet-20241022`（Anthropic 兼容） |
-| **SDK** | `anthropic>=0.34.0`（新增依赖） |
+| **模型** | `mimo-v2.5-pro`（小米自研大模型） |
+| **SDK** | `openai>=1.30.1`（OpenAI 兼容接口） |
 | **超时设置** | 60 秒 |
 | **重试机制** | 失败自动重试最多 2 次 |
 | **降级策略** | API 调用失败时返回 Mock 数据，确保前端流程不中断 |
@@ -402,7 +402,7 @@ frontend/
 |------|------|
 | `requirements.txt` | 新增 `anthropic>=0.34.0` 依赖 |
 | `app/core/config.py` | 新增 `XIAOMI_API_KEY`、`XIAOMI_API_BASE`、`XIAOMI_MODEL`、`AI_PROVIDER` 配置 |
-| `app/services/ai_service.py` | **重写**：新增 `_AnthropicClient` 和 `_OpenAIClient` 封装，支持双 Provider 切换 |
+| `app/services/ai_service.py` | **重写**：新增 `_XiaomiClient` 和 `_OpenAIClient` 封装，支持双 Provider 切换；新增 `_parse_json_from_text()` 处理 markdown 代码块 |
 | `app/main.py` | 新增 `/ai-status` 端点（检查 AI 配置状态，不暴露密钥）；启动日志显示 AI Provider |
 | `.env.example` | 更新示例配置，添加小米 TokenPlan API 配置项 |
 | `.env` | 创建本地配置文件（已在 .gitignore 中） |

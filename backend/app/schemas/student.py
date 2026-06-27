@@ -1,8 +1,9 @@
 """Student request/response schemas."""
 
+import uuid
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class StudentCreate(BaseModel):
@@ -28,6 +29,13 @@ class StudentResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
 
 
 class StudentListResponse(BaseModel):

@@ -65,43 +65,61 @@ def _extract_list_from_response(result, keys: list[str] = None) -> list:
     return []
 
 
+def _parse_json_from_text(text: str) -> dict | list:
+    """Parse JSON from AI response, handling markdown code blocks.
+
+    AI models often wrap JSON in ```json ... ``` blocks.
+    This function strips them before parsing.
+    """
+    import re
+
+    # Strip markdown code blocks
+    text = text.strip()
+    if text.startswith("```"):
+        # Remove first line (```json or ```)
+        lines = text.split("\n", 1)
+        if len(lines) > 1:
+            text = lines[1]
+        # Remove trailing ```
+        if text.rstrip().endswith("```"):
+            text = text.rstrip()[:-3].rstrip()
+
+    return json.loads(text)
+
+
 # ──────────────────────────────────────────────────────────────
 # AI Client Factory
 # ──────────────────────────────────────────────────────────────
 
-class _AnthropicClient:
-    """Wrapper around Anthropic SDK for Xiaomi TokenPlan API."""
+class _XiaomiClient:
+    """Wrapper around OpenAI SDK for Xiaomi TokenPlan API (OpenAI compatible)."""
 
     def __init__(self):
         self._client = None
 
     def _ensure_client(self):
         if self._client is None:
-            import anthropic
-            self._client = anthropic.AsyncAnthropic(
+            from openai import AsyncOpenAI
+            self._client = AsyncOpenAI(
                 api_key=settings.XIAOMI_API_KEY,
                 base_url=settings.XIAOMI_API_BASE,
                 timeout=REQUEST_TIMEOUT,
                 max_retries=MAX_RETRIES,
             )
 
-    async def chat(self, system_prompt: str, user_prompt: str, temperature: float = 0.1) -> str:
-        """Send a message and return the text response."""
+    async def chat(self, system_prompt: str, user_prompt: str, temperature: float = 0.1) -> tuple[str, object]:
+        """Send a message and return (text, usage)."""
         self._ensure_client()
-        response = await self._client.messages.create(
+        response = await self._client.chat.completions.create(
             model=settings.XIAOMI_MODEL,
-            max_tokens=4096,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
             temperature=temperature,
+            max_tokens=4096,
         )
-        # Extract text from response
-        return response.content[0].text
-
-    @property
-    def usage_info(self):
-        """Return a dict to extract usage from the last response."""
-        return {}
+        return response.choices[0].message.content, response.usage
 
 
 class _OpenAIClient:
@@ -139,11 +157,11 @@ def _get_ai_client():
     """Get the appropriate AI client based on AI_PROVIDER setting."""
     provider = settings.AI_PROVIDER.lower()
     if provider == "xiaomi" and settings.XIAOMI_API_KEY:
-        return _AnthropicClient(), "xiaomi"
+        return _XiaomiClient(), "xiaomi"
     elif provider == "openai" and settings.OPENAI_API_KEY:
         return _OpenAIClient(), "openai"
     elif settings.XIAOMI_API_KEY:
-        return _AnthropicClient(), "xiaomi"
+        return _XiaomiClient(), "xiaomi"
     elif settings.OPENAI_API_KEY:
         return _OpenAIClient(), "openai"
     else:
@@ -273,20 +291,14 @@ class AIService:
         try:
             logger.info(f"Calling {provider} API for weakness analysis (student={student_id})")
 
-            if provider == "xiaomi":
-                text = await client.chat(system_prompt, user_prompt, temperature=0.1)
-                result = json.loads(text)
-                result = _extract_list_from_response(result, ["weaknesses", "data", "items"])
-                await self._log_usage(db, str(student.user_id), "analyze")
-            else:
-                text, usage = await client.chat(system_prompt, user_prompt, temperature=0.1)
-                result = json.loads(text)
-                result = _extract_list_from_response(result, ["weaknesses", "data", "items"])
-                await self._log_usage(
-                    db, str(student.user_id), "analyze",
-                    input_tokens=usage.prompt_tokens if usage else 0,
-                    output_tokens=usage.completion_tokens if usage else 0,
-                )
+            text, usage = await client.chat(system_prompt, user_prompt, temperature=0.1)
+            result = _parse_json_from_text(text)
+            result = _extract_list_from_response(result, ["weaknesses", "data", "items"])
+            await self._log_usage(
+                db, str(student.user_id), "analyze",
+                input_tokens=usage.prompt_tokens if usage else 0,
+                output_tokens=usage.completion_tokens if usage else 0,
+            )
 
             logger.info(f"Weakness analysis completed: {len(result)} weaknesses found")
             return result
@@ -374,20 +386,14 @@ class AIService:
         try:
             logger.info(f"Calling {provider} API for question generation (knowledge_point={knowledge_point})")
 
-            if provider == "xiaomi":
-                text = await client.chat(system_prompt, user_prompt, temperature=0.7)
-                result = json.loads(text)
-                result = _extract_list_from_response(result, ["questions", "data", "items"])
-                await self._log_usage(db, user_id, "generate_questions")
-            else:
-                text, usage = await client.chat(system_prompt, user_prompt, temperature=0.7)
-                result = json.loads(text)
-                result = _extract_list_from_response(result, ["questions", "data", "items"])
-                await self._log_usage(
-                    db, user_id, "generate_questions",
-                    input_tokens=usage.prompt_tokens if usage else 0,
-                    output_tokens=usage.completion_tokens if usage else 0,
-                )
+            text, usage = await client.chat(system_prompt, user_prompt, temperature=0.7)
+            result = _parse_json_from_text(text)
+            result = _extract_list_from_response(result, ["questions", "data", "items"])
+            await self._log_usage(
+                db, user_id, "generate_questions",
+                input_tokens=usage.prompt_tokens if usage else 0,
+                output_tokens=usage.completion_tokens if usage else 0,
+            )
 
             logger.info(f"Question generation completed: {len(result)} questions generated")
             return result
@@ -485,18 +491,13 @@ class AIService:
         try:
             logger.info(f"Calling {provider} API for mastery assessment (knowledge_point={knowledge_point})")
 
-            if provider == "xiaomi":
-                text = await client.chat(system_prompt, user_prompt, temperature=0.1)
-                result = json.loads(text)
-                await self._log_usage(db, user_id, "assess_mastery")
-            else:
-                text, usage = await client.chat(system_prompt, user_prompt, temperature=0.1)
-                result = json.loads(text)
-                await self._log_usage(
-                    db, user_id, "assess_mastery",
-                    input_tokens=usage.prompt_tokens if usage else 0,
-                    output_tokens=usage.completion_tokens if usage else 0,
-                )
+            text, usage = await client.chat(system_prompt, user_prompt, temperature=0.1)
+            result = _parse_json_from_text(text)
+            await self._log_usage(
+                db, user_id, "assess_mastery",
+                input_tokens=usage.prompt_tokens if usage else 0,
+                output_tokens=usage.completion_tokens if usage else 0,
+            )
 
             logger.info(f"Mastery assessment completed: score={result.get('mastery_score')}")
             return result

@@ -40,10 +40,10 @@ class Settings(BaseSettings):
     OPENAI_API_BASE: str = "https://api.openai.com/v1"
     DEFAULT_AI_MODEL: str = "gpt-4o"
 
-    # Xiaomi TokenPlan API (Anthropic compatible)
+    # Xiaomi TokenPlan API (OpenAI compatible)
     XIAOMI_API_KEY: Optional[str] = None
-    XIAOMI_API_BASE: str = "https://token-plan-cn.xiaomimimo.com/anthropic"
-    XIAOMI_MODEL: str = "claude-3-5-sonnet-20241022"
+    XIAOMI_API_BASE: str = "https://token-plan-cn.xiaomimimo.com/v1"
+    XIAOMI_MODEL: str = "mimo-v2.5-pro"
 
     # AI Provider: "openai" or "xiaomi"
     AI_PROVIDER: str = "xiaomi"
