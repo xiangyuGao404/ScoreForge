@@ -581,3 +581,39 @@ cd frontend && VITE_USE_MOCK=false npm run dev:h5
 - [x] 切换孩子 → 首页数据刷新
 - [x] 上传试卷 → 确认识别 → 查看薄弱点，全流程走通
 - [x] Token 过期（401）→ 清理 store → 跳转登录页
+
+---
+
+## V1.0-integration-audit — 2026-06-27
+
+### 全链路联调审查 + 前端任务清单更新
+
+对后端全部 17 个 API 进行实际调用测试，发现并记录前后端对接的所有断点。
+
+#### 测试结果
+
+| 测试项 | 状态 | 说明 |
+|--------|------|------|
+| 登录流程 | ✅ | send-code → login → token |
+| 学生 CRUD | ✅ | create / list / update |
+| 试卷上传 | ✅ | multipart/form-data 格式正确 |
+| 识别结果 | ✅ | 含 mock 数据 |
+| 确认识别 | ✅ | 触发 AI 分析（mock） |
+| 薄弱点列表 | ✅ | 需 student_id 查询参数 |
+| 薄弱点页面 | ❌ | `student_id` 未注入 + 响应缺字段 |
+| 孩子管理 | ❌ | 只有 toast 占位，未实现 |
+| 出题 | ❌ | `student_id` 为 undefined |
+| 首页 | ❌ | 硬编码 mock 数据 |
+| 教师对话 | ❌ | 后端无接口，前端硬编码 |
+| 标记已掌握 | ❌ | 按钮未调 API |
+
+#### 根因分析
+
+1. **`student_id` 断链**：后端 `GET /weaknesses` 不返回 `student_id` 字段，前端 `Weakness` 接口需要该字段，导致 `startPractice` 传 `undefined`
+2. **孩子管理未实现**：`goStudentManage` 是 stub 函数
+3. **首页未接 API**：`stats`/`recentExam`/`pendingWeaknesses` 全部硬编码
+4. **chat 硬编码**：`student_id: 's-001'` 写死
+
+#### 更新的文档
+
+- [前端修复任务清单](前端修复任务清单.md) — 完全重写，从 15 个任务精简为按实际测试结果组织的 15 个任务，每个任务含具体的后端接口格式对照
