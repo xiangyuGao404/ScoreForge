@@ -142,7 +142,16 @@ async function loadRecognition() {
   try {
     const res = await getRecognition(examId.value)
     if (res.code === 0) {
-      questions.value = res.data.questions
+      // 标准化字段：后端可能返回 null，需给默认值
+      questions.value = (res.data.questions || []).map((q: any) => ({
+        question_no: q.question_no,
+        question_content: q.question_content || `第${q.question_no}题（内容识别中）`,
+        is_correct: q.is_correct ?? false,
+        score_got: q.score_got ?? 0,
+        score_total: q.score_total ?? 0,
+        confidence: q.confidence ?? 0,
+        parent_verified: q.parent_verified ?? false,
+      }))
     }
   } catch (e: any) {
     uni.showToast({ title: e.message || '加载失败', icon: 'none' })
@@ -165,7 +174,7 @@ function validateScore(q: Question) {
   const score = Number(q.score_got)
   if (isNaN(score) || score < 0) q.score_got = 0
   if (score > q.score_total) q.score_got = q.score_total
-  q.is_correct = q.score_got >= q.score_total
+  q.is_correct = Number(q.score_got) >= Number(q.score_total)
 }
 
 async function handleConfirm() {
@@ -175,8 +184,8 @@ async function handleConfirm() {
       examId.value,
       questions.value.map(q => ({
         question_no: q.question_no,
-        is_correct: q.is_correct,
-        score_got: Number(q.score_got),
+        is_correct: !!q.is_correct, // 确保是 boolean，不是 null
+        score_got: Number(q.score_got) || 0,
         parent_verified: true,
       }))
     )
