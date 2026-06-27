@@ -617,3 +617,40 @@ cd frontend && VITE_USE_MOCK=false npm run dev:h5
 #### 更新的文档
 
 - [前端修复任务清单](前端修复任务清单.md) — 完全重写，从 15 个任务精简为按实际测试结果组织的 15 个任务，每个任务含具体的后端接口格式对照
+
+---
+
+## V1.0-ai-refactor-frontend — 2026-06-27
+
+### 前端 AI 模型重构任务（3/3 完成）
+
+依据 [AI模型重构任务清单](AI模型重构任务清单.md) 中的前端任务逐项实现：
+
+| # | 任务 | 优先级 | 状态 | 说明 |
+|---|------|--------|------|------|
+| F-1 | 设置页重构 API 配置区域 | P0 | ✅ | 完整重写：AI 模式切换、平台选择（小米/DeepSeek/OpenAI）、API Key 输入、API 地址、通用/视觉模型下拉选择、测试连接、保存配置 |
+| F-2 | API 测试功能 | P1 | ✅ | `service.ts` 新增 `getApiConfig`/`saveApiConfig`/`testApiConfig` 三个函数；设置页集成测试按钮 + 结果展示 |
+| F-3 | 确保 subject 正确传递 | P1 | ✅ | `uploadExam` 已在 formData 中传递 `subject`，无需改动 |
+
+#### 设置页新功能
+
+```
+🔑 API 配置
+├── AI 模式：系统内置 / 自备 API Key（单选）
+└── 自备模式下：
+    ├── AI 平台：小米 TokenPlan / DeepSeek / OpenAI 兼容（标签选择）
+    ├── API Key：密码输入 + 显隐切换
+    ├── API 地址：自动填充平台默认地址
+    ├── 通用模型：下拉选择（分析/出题/评估）
+    ├── 图片识别模型：下拉选择（试卷识别）
+    ├── [测试连接] → 调用 POST /settings/test-api → 显示成功/失败/响应时间
+    └── [保存配置] → 调用 PUT /settings/api-config
+```
+
+#### 新增 service.ts 函数
+
+| 函数 | 后端接口 | 说明 |
+|------|----------|------|
+| `getApiConfig()` | `GET /settings/api-config` | 获取当前用户 API 配置 |
+| `saveApiConfig(config)` | `PUT /settings/api-config` | 保存 API 配置 |
+| `testApiConfig(params)` | `POST /settings/test-api` | 测试 API Key + 模型是否可用 |

@@ -370,3 +370,49 @@ export async function generatePdf(sessionId: string) {
   }
   return request({ url: '/pdf/generate', method: 'POST', data: { session_id: sessionId } })
 }
+
+// ===== API 配置 =====
+export async function getApiConfig() {
+  if (USE_MOCK) {
+    await mock.delay(300)
+    return {
+      code: 0,
+      data: {
+        provider: 'xiaomi',
+        api_key_set: false,
+        api_base: 'https://token-plan-cn.xiaomimimo.com/v1',
+        general_model: 'mimo-v2.5-pro',
+        vision_model: 'mimo-v2.5',
+      },
+    }
+  }
+  return request({ url: '/settings/api-config' })
+}
+
+export async function saveApiConfig(config: {
+  provider: string
+  api_key: string
+  api_base?: string
+  general_model: string
+  vision_model: string
+}) {
+  if (USE_MOCK) {
+    await mock.delay(500)
+    return { code: 0, message: '配置已保存' }
+  }
+  return request({ url: '/settings/api-config', method: 'PUT', data: config })
+}
+
+export async function testApiConfig(params: {
+  provider?: string
+  api_key?: string
+  api_base?: string
+  model?: string
+  task_type: 'general' | 'vision'
+}) {
+  if (USE_MOCK) {
+    await mock.delay(1500)
+    return { code: 0, data: { success: true, model: 'mock-model', response_preview: 'OK', latency_ms: 500 } }
+  }
+  return request({ url: '/settings/test-api', method: 'POST', data: params })
+}

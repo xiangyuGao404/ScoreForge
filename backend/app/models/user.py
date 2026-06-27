@@ -32,6 +32,9 @@ class User(Base):
     nickname: Mapped[str] = mapped_column(String(50), default="家长")
     user_level: Mapped[UserLevel] = mapped_column(Enum(UserLevel), default=UserLevel.FREE)
     api_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 存储格式：Fernet 加密后的 JSON 字符串
+    # {"provider":"xiaomi","api_key":"tp-xxx","api_base":"...","general_model":"...","vision_model":"..."}
+    api_config_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     paid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

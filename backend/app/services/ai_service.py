@@ -1,18 +1,13 @@
 """
 AI Service - ScoreForge
 
-接入小米 TokenPlan API（Anthropic 兼容接口）进行：
-1. 试卷薄弱点分析（analyze_weaknesses）
-2. 智能出题（generate_questions）
-3. 掌握度评估（assess_mastery）
-
-降级策略：API 调用失败时返回 Mock 数据，确保前端流程不中断。
+支持多平台（小米/DeepSeek/OpenAI）+ 多模型（通用/视觉）切换。
+用户可配置自己的 API Key，优先级：用户配置 > 系统配置 > mock
 """
 
 import json
 import logging
 import uuid
-import asyncio
 from typing import Optional
 
 from sqlalchemy import select
@@ -24,22 +19,12 @@ from app.models.api_usage import APIUsageLog
 
 logger = logging.getLogger(__name__)
 
-# ──────────────────────────────────────────────────────────────
-# Constants
-# ──────────────────────────────────────────────────────────────
-
-MAX_RETRIES = 2          # 最多重试 2 次
-REQUEST_TIMEOUT = 60.0   # 60 秒超时
+MAX_RETRIES = 2
+REQUEST_TIMEOUT = 60.0
 
 
 def _extract_list_from_response(result, keys: list[str] = None) -> list:
-    """Extract a list from AI response, handling various JSON formats.
-
-    Handles:
-    - Direct list: [...]
-    - Wrapped list: {"weaknesses": [...]} or {"questions": [...]} or {"data": [...]}
-    - Nested: {"data": {"weaknesses": [...]}}
-    """
+    """Extract a list from AI response, handling various JSON formats."""
     if keys is None:
         keys = ["weaknesses", "questions", "data", "items", "results"]
 
@@ -56,7 +41,6 @@ def _extract_list_from_response(result, keys: list[str] = None) -> list:
                     subval = val.get(subkey)
                     if isinstance(subval, list):
                         return subval
-        # Try any list value in the dict
         for val in result.values():
             if isinstance(val, list):
                 return val
@@ -65,22 +49,15 @@ def _extract_list_from_response(result, keys: list[str] = None) -> list:
     return []
 
 
-def _parse_json_from_text(text: str) -> dict | list:
-    """Parse JSON from AI response, handling markdown code blocks.
-
-    AI models often wrap JSON in ```json ... ``` blocks.
-    This function strips them before parsing.
-    """
+def _parse_json_from_text(text: str):
+    """Parse JSON from AI response, handling markdown code blocks."""
     import re
 
-    # Strip markdown code blocks
     text = text.strip()
     if text.startswith("```"):
-        # Remove first line (```json or ```)
         lines = text.split("\n", 1)
         if len(lines) > 1:
             text = lines[1]
-        # Remove trailing ```
         if text.rstrip().endswith("```"):
             text = text.rstrip()[:-3].rstrip()
 
@@ -88,85 +65,90 @@ def _parse_json_from_text(text: str) -> dict | list:
 
 
 # ──────────────────────────────────────────────────────────────
-# AI Client Factory
+# Client Factory
 # ──────────────────────────────────────────────────────────────
 
-class _XiaomiClient:
-    """Wrapper around OpenAI SDK for Xiaomi TokenPlan API (OpenAI compatible)."""
+def _get_client(task_type: str = "general", user_config: dict = None):
+    """
+    获取 AI 客户端。
+    优先级：用户配置 > 系统配置 > mock
 
-    def __init__(self):
-        self._client = None
+    Args:
+        task_type: "general" (分析/出题/评估) 或 "vision" (图片识别)
+        user_config: 用户自配置 {"provider", "api_key", "api_base", "general_model", "vision_model"}
 
-    def _ensure_client(self):
-        if self._client is None:
-            from openai import AsyncOpenAI
-            self._client = AsyncOpenAI(
-                api_key=settings.XIAOMI_API_KEY,
-                base_url=settings.XIAOMI_API_BASE,
-                timeout=REQUEST_TIMEOUT,
-                max_retries=MAX_RETRIES,
-            )
+    Returns:
+        (client, model, provider) 或 (None, None, "mock")
+    """
+    from openai import AsyncOpenAI
 
-    async def chat(self, system_prompt: str, user_prompt: str, temperature: float = 0.1) -> tuple[str, object]:
-        """Send a message and return (text, usage)."""
-        self._ensure_client()
-        response = await self._client.chat.completions.create(
-            model=settings.XIAOMI_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=temperature,
-            max_tokens=4096,
+    # 优先使用用户配置
+    if user_config and user_config.get("api_key"):
+        provider = user_config.get("provider", "openai")
+        api_key = user_config["api_key"]
+        api_base = user_config.get("api_base", "https://api.openai.com/v1")
+        model_key = f"{task_type}_model"
+        model = user_config.get(model_key, "")
+
+        if not model:
+            # Fallback to system default
+            model = _get_system_model(provider, task_type)
+
+        client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=api_base,
+            timeout=REQUEST_TIMEOUT,
+            max_retries=MAX_RETRIES,
         )
-        return response.choices[0].message.content, response.usage
+        return client, model, provider
 
-
-class _OpenAIClient:
-    """Wrapper around OpenAI SDK (fallback)."""
-
-    def __init__(self):
-        self._client = None
-
-    def _ensure_client(self):
-        if self._client is None:
-            from openai import AsyncOpenAI
-            self._client = AsyncOpenAI(
-                api_key=settings.OPENAI_API_KEY,
-                base_url=settings.OPENAI_API_BASE,
-                timeout=REQUEST_TIMEOUT,
-                max_retries=MAX_RETRIES,
-            )
-
-    async def chat(self, system_prompt: str, user_prompt: str, temperature: float = 0.1) -> tuple[str, object]:
-        """Send a message and return (text, usage)."""
-        self._ensure_client()
-        response = await self._client.chat.completions.create(
-            model=settings.DEFAULT_AI_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=temperature,
-            response_format={"type": "json_object"},
-        )
-        return response.choices[0].message.content, response.usage
-
-
-def _get_ai_client():
-    """Get the appropriate AI client based on AI_PROVIDER setting."""
+    # 使用系统默认配置
     provider = settings.AI_PROVIDER.lower()
+
     if provider == "xiaomi" and settings.XIAOMI_API_KEY:
-        return _XiaomiClient(), "xiaomi"
-    elif provider == "openai" and settings.OPENAI_API_KEY:
-        return _OpenAIClient(), "openai"
-    elif settings.XIAOMI_API_KEY:
-        return _XiaomiClient(), "xiaomi"
+        api_key = settings.XIAOMI_API_KEY
+        api_base = settings.XIAOMI_API_BASE
+        model = settings.XIAOMI_VISION_MODEL if task_type == "vision" else settings.XIAOMI_GENERAL_MODEL
+    elif provider == "deepseek" and settings.DEEPSEEK_API_KEY:
+        api_key = settings.DEEPSEEK_API_KEY
+        api_base = settings.DEEPSEEK_API_BASE
+        model = settings.DEEPSEEK_VISION_MODEL if task_type == "vision" else settings.DEEPSEEK_GENERAL_MODEL
     elif settings.OPENAI_API_KEY:
-        return _OpenAIClient(), "openai"
+        api_key = settings.OPENAI_API_KEY
+        api_base = settings.OPENAI_API_BASE
+        model = settings.OPENAI_VISION_MODEL if task_type == "vision" else settings.OPENAI_GENERAL_MODEL
+        provider = "openai"
     else:
         logger.warning("No AI API key configured, will use mock responses")
-        return None, "mock"
+        return None, None, "mock"
+
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url=api_base,
+        timeout=REQUEST_TIMEOUT,
+        max_retries=MAX_RETRIES,
+    )
+    return client, model, provider
+
+
+def _get_system_model(provider: str, task_type: str) -> str:
+    """Get default model for a provider and task type."""
+    if provider == "xiaomi":
+        return settings.XIAOMI_VISION_MODEL if task_type == "vision" else settings.XIAOMI_GENERAL_MODEL
+    elif provider == "deepseek":
+        return settings.DEEPSEEK_VISION_MODEL if task_type == "vision" else settings.DEEPSEEK_GENERAL_MODEL
+    else:
+        return settings.OPENAI_VISION_MODEL if task_type == "vision" else settings.OPENAI_GENERAL_MODEL
+
+
+def get_vision_client(user_config: dict = None):
+    """Get vision model client for OCR service."""
+    return _get_client(task_type="vision", user_config=user_config)
+
+
+def get_general_client(user_config: dict = None):
+    """Get general model client for analysis/generation."""
+    return _get_client(task_type="general", user_config=user_config)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -192,6 +174,19 @@ class AIService:
         except Exception as e:
             logger.warning(f"Failed to log API usage: {e}")
 
+    async def _get_user_config(self, db: AsyncSession, user_id: str) -> Optional[dict]:
+        """Get user's API config if available."""
+        try:
+            from app.core.security import decrypt_api_key
+            result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+            user = result.scalar_one_or_none()
+            if user and user.api_config_encrypted:
+                decrypted = decrypt_api_key(user.api_config_encrypted)
+                return json.loads(decrypted)
+        except Exception as e:
+            logger.warning(f"Failed to get user config: {e}")
+        return None
+
     # ──────────────────────────────────────────────────────────
     # 1. 薄弱点分析
     # ──────────────────────────────────────────────────────────
@@ -205,20 +200,14 @@ class AIService:
         wrong_questions: list[dict],
         db: AsyncSession,
     ) -> list[dict]:
-        """
-        分析试卷错题，识别薄弱知识点并按提分性价比排序。
+        """Analyze exam results and identify weaknesses with star ratings."""
 
-        Returns: list of weakness dicts with star_rating, reason, etc.
-        """
-
-        # Get student info
         from app.models.user import Student
         student_result = await db.execute(select(Student).where(Student.id == uuid.UUID(student_id)))
         student = student_result.scalar_one_or_none()
         if not student:
             raise ValueError("Student not found")
 
-        # Get historical weaknesses
         from app.models.weakness import Weakness
         from app.models.knowledge import KnowledgePoint
         history_result = await db.execute(
@@ -231,7 +220,6 @@ class AIService:
             for w, kp in history_result.all()
         ]
 
-        # ── Prompt 模板 ──
         system_prompt = """你是一位资深的中学教研专家，拥有20年教学经验，擅长分析学生试卷并制定高效的提分策略。
 
 ## 输出要求
@@ -282,18 +270,32 @@ class AIService:
 
 请分析并输出薄弱点列表（JSON对象，包含weaknesses数组）。"""
 
-        # Call AI
-        client, provider = _get_ai_client()
+        # Get client (try user config first)
+        user_config = await self._get_user_config(db, str(student.user_id))
+        client, model, provider = get_general_client(user_config)
+
         if not client:
             logger.warning("No AI client available, returning mock weakness analysis")
             return self._mock_weakness_analysis(wrong_questions)
 
         try:
-            logger.info(f"Calling {provider} API for weakness analysis (student={student_id})")
+            logger.info(f"Calling {provider}/{model} for weakness analysis (student={student_id})")
 
-            text, usage = await client.chat(system_prompt, user_prompt, temperature=0.1)
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.1,
+                max_tokens=4096,
+            )
+
+            text = response.choices[0].message.content
             result = _parse_json_from_text(text)
             result = _extract_list_from_response(result, ["weaknesses", "data", "items"])
+
+            usage = response.usage
             await self._log_usage(
                 db, str(student.user_id), "analyze",
                 input_tokens=usage.prompt_tokens if usage else 0,
@@ -304,7 +306,7 @@ class AIService:
             return result
 
         except Exception as e:
-            logger.error(f"AI weakness analysis failed ({provider}): {e}", exc_info=True)
+            logger.error(f"AI weakness analysis failed ({provider}/{model}): {e}", exc_info=True)
             return self._mock_weakness_analysis(wrong_questions)
 
     # ──────────────────────────────────────────────────────────
@@ -321,16 +323,11 @@ class AIService:
         db: AsyncSession,
         user_id: str,
     ) -> list[dict]:
-        """
-        为指定薄弱知识点生成练习题。
-
-        Returns: list of question dicts.
-        """
+        """Generate practice questions for a specific knowledge point."""
 
         subject_labels = {"math": "数学", "politics": "道法", "history": "历史"}
         subject_label = subject_labels.get(subject, subject)
 
-        # ── Prompt 模板 ──
         system_prompt = f"""你是一位中学{subject_label}命题专家，擅长针对特定知识点设计精准的练习题。
 
 ## 命题原则
@@ -378,17 +375,31 @@ class AIService:
 
 请生成{question_count}道练习题。"""
 
-        client, provider = _get_ai_client()
+        user_config = await self._get_user_config(db, user_id)
+        client, model, provider = get_general_client(user_config)
+
         if not client:
             logger.warning("No AI client available, returning mock questions")
             return self._mock_question_generation(question_count)
 
         try:
-            logger.info(f"Calling {provider} API for question generation (knowledge_point={knowledge_point})")
+            logger.info(f"Calling {provider}/{model} for question generation (knowledge_point={knowledge_point})")
 
-            text, usage = await client.chat(system_prompt, user_prompt, temperature=0.7)
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.7,
+                max_tokens=4096,
+            )
+
+            text = response.choices[0].message.content
             result = _parse_json_from_text(text)
             result = _extract_list_from_response(result, ["questions", "data", "items"])
+
+            usage = response.usage
             await self._log_usage(
                 db, user_id, "generate_questions",
                 input_tokens=usage.prompt_tokens if usage else 0,
@@ -399,7 +410,7 @@ class AIService:
             return result
 
         except Exception as e:
-            logger.error(f"AI question generation failed ({provider}): {e}", exc_info=True)
+            logger.error(f"AI question generation failed ({provider}/{model}): {e}", exc_info=True)
             return self._mock_question_generation(question_count)
 
     # ──────────────────────────────────────────────────────────
@@ -418,13 +429,8 @@ class AIService:
         db: AsyncSession,
         user_id: str,
     ) -> dict:
-        """
-        评估学生对某知识点的掌握程度。
+        """Assess mastery level based on practice results."""
 
-        Returns: dict with mastery_score, trend, recommendation, etc.
-        """
-
-        # ── Prompt 模板 ──
         system_prompt = """你是一位教育心理学专家，擅长评估学生对特定知识点的掌握程度。
 
 ## 评估维度
@@ -483,16 +489,30 @@ class AIService:
 
 请评估掌握程度。"""
 
-        client, provider = _get_ai_client()
+        user_config = await self._get_user_config(db, user_id)
+        client, model, provider = get_general_client(user_config)
+
         if not client:
             logger.warning("No AI client available, returning mock assessment")
             return self._mock_mastery_assessment(correct_count, total_count)
 
         try:
-            logger.info(f"Calling {provider} API for mastery assessment (knowledge_point={knowledge_point})")
+            logger.info(f"Calling {provider}/{model} for mastery assessment (knowledge_point={knowledge_point})")
 
-            text, usage = await client.chat(system_prompt, user_prompt, temperature=0.1)
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.1,
+                max_tokens=4096,
+            )
+
+            text = response.choices[0].message.content
             result = _parse_json_from_text(text)
+
+            usage = response.usage
             await self._log_usage(
                 db, user_id, "assess_mastery",
                 input_tokens=usage.prompt_tokens if usage else 0,
@@ -503,7 +523,7 @@ class AIService:
             return result
 
         except Exception as e:
-            logger.error(f"AI mastery assessment failed ({provider}): {e}", exc_info=True)
+            logger.error(f"AI mastery assessment failed ({provider}/{model}): {e}", exc_info=True)
             return self._mock_mastery_assessment(correct_count, total_count)
 
     # ──────────────────────────────────────────────────────────
@@ -511,7 +531,6 @@ class AIService:
     # ──────────────────────────────────────────────────────────
 
     def _mock_weakness_analysis(self, wrong_questions: list[dict]) -> list[dict]:
-        """Return mock weakness analysis for fallback."""
         logger.info("Returning mock weakness analysis data")
         return [
             {
@@ -541,12 +560,10 @@ class AIService:
         ]
 
     def _mock_question_generation(self, count: int) -> list[dict]:
-        """Return mock questions for fallback."""
         logger.info(f"Returning {count} mock questions")
         questions = []
         difficulties = ["basic", "basic", "medium", "medium", "advanced"]
         types = ["fill_blank", "choice", "fill_blank", "solve", "choice"]
-
         for i in range(1, count + 1):
             diff_idx = min(i - 1, len(difficulties) - 1)
             questions.append({
@@ -560,7 +577,6 @@ class AIService:
         return questions
 
     def _mock_mastery_assessment(self, correct: int, total: int) -> dict:
-        """Return mock mastery assessment for fallback."""
         rate = correct / total if total > 0 else 0
         logger.info(f"Returning mock mastery assessment (rate={rate:.2f})")
         return {

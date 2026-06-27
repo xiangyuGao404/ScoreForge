@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     SECRET_KEY: str = "dev-secret-key-change-in-production"
-    ALLOWED_ORIGINS: str = "*"  # S-3: In production, set to specific domains
+    ALLOWED_ORIGINS: str = "*"
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://scoreforge:password@localhost:5432/scoreforge"
@@ -26,8 +26,7 @@ class Settings(BaseSettings):
     # JWT
     JWT_SECRET_KEY: str = "dev-jwt-secret-change-in-production"
     JWT_ALGORITHM: str = "HS256"
-    # S-6: Reduce JWT expiry in production
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days (dev), reduce to 1-2 days in prod
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
     # SMS (Alibaba Cloud)
     SMS_ACCESS_KEY: Optional[str] = None
@@ -35,18 +34,26 @@ class Settings(BaseSettings):
     SMS_SIGN_NAME: str = "ScoreForge"
     SMS_TEMPLATE_CODE: str = "SMS_XXX"
 
-    # AI API
-    OPENAI_API_KEY: Optional[str] = None
-    OPENAI_API_BASE: str = "https://api.openai.com/v1"
-    DEFAULT_AI_MODEL: str = "gpt-4o"
+    # ===== AI 平台配置（系统级默认值，可被用户配置覆盖） =====
+    AI_PROVIDER: str = "xiaomi"  # xiaomi / deepseek / openai
 
-    # Xiaomi TokenPlan API (OpenAI compatible)
+    # 小米 TokenPlan
     XIAOMI_API_KEY: Optional[str] = None
     XIAOMI_API_BASE: str = "https://token-plan-cn.xiaomimimo.com/v1"
-    XIAOMI_MODEL: str = "mimo-v2.5-pro"
+    XIAOMI_GENERAL_MODEL: str = "mimo-v2.5-pro"      # 通用：分析、出题、评估
+    XIAOMI_VISION_MODEL: str = "mimo-v2.5"            # 图片识别
 
-    # AI Provider: "openai" or "xiaomi"
-    AI_PROVIDER: str = "xiaomi"
+    # DeepSeek
+    DEEPSEEK_API_KEY: Optional[str] = None
+    DEEPSEEK_API_BASE: str = "https://api.deepseek.com/v1"
+    DEEPSEEK_GENERAL_MODEL: str = "deepseek-v4-flash"
+    DEEPSEEK_VISION_MODEL: str = "DeepSeek-VL2"
+
+    # OpenAI 兼容（用户自填）
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_API_BASE: str = "https://api.openai.com/v1"
+    OPENAI_GENERAL_MODEL: str = "gpt-4o"
+    OPENAI_VISION_MODEL: str = "gpt-4o"
 
     # User AI Key Encryption
     USER_KEY_ENCRYPTION_KEY: str = "dev-encryption-key-change-in-production"
@@ -62,9 +69,6 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     PDF_DIR: str = "./pdfs"
 
-    # OCR
-    OCR_USE_GPU: bool = False
-
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
@@ -72,7 +76,7 @@ class Settings(BaseSettings):
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     def validate_production_settings(self):
-        """S-2: Validate critical settings in production mode."""
+        """Validate critical settings in production mode."""
         if not self.DEBUG:
             warnings = []
             if "change-in-production" in self.SECRET_KEY:
@@ -86,7 +90,6 @@ class Settings(BaseSettings):
             if warnings:
                 for w in warnings:
                     logger.warning(f"Security warning: {w}")
-                # In strict mode, could raise an error here
 
 
 settings = Settings()
