@@ -4,8 +4,22 @@ import { useUserStore } from './store/user'
 import { useStudentStore } from './store/student'
 import { getStudents } from './utils/service'
 
+// 不需要登录就能访问的页面
+const publicPages = ['/pages/login/index']
+
 onLaunch(async () => {
   const userStore = useUserStore()
+
+  // 任务 10：路由守卫 — 检查登录状态
+  const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1]
+  const currentPath = currentPage ? '/' + (currentPage as any).route : ''
+
+  if (!userStore.isLoggedIn && !publicPages.includes(currentPath)) {
+    uni.redirectTo({ url: '/pages/login/index' })
+    return
+  }
+
   if (userStore.isLoggedIn) {
     // 已登录，加载学生数据
     try {

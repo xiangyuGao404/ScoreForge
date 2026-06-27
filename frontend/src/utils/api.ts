@@ -3,6 +3,8 @@
  * 后端未就绪时自动使用 Mock 数据
  */
 
+import { useUserStore } from '../store/user'
+
 const BASE_URL = '/api/v1'
 // 通过环境变量 VITE_USE_MOCK 控制，开发时默认 true，构建时可指定 false
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
@@ -41,7 +43,15 @@ export function request<T = any>(options: RequestOptions): Promise<ApiResponse<T
         if (res.statusCode === 200) {
           resolve(res.data as ApiResponse<T>)
         } else if (res.statusCode === 401) {
-          uni.removeStorageSync('token')
+          // 任务 11：401 时清理完整登录状态
+          try {
+            useUserStore().logout()
+          } catch {
+            // store 未初始化时降级处理
+            uni.removeStorageSync('token')
+            uni.removeStorageSync('nickname')
+            uni.removeStorageSync('userLevel')
+          }
           uni.redirectTo({ url: '/pages/login/index' })
           reject(new Error('未登录或登录已过期'))
         } else {

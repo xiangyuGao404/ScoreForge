@@ -532,3 +532,52 @@ cd frontend && VITE_USE_MOCK=false npm run dev:h5
 - ✅ 在线答题：生成题目 → 答题 → 提交 → 掌握度评估
 - ✅ Chat：降级为 mock 提示，不报错
 - ⚠️ PDF：后端已实现，前端页面待 V1.1
+
+---
+
+## V1.0-frontend-tasks — 2026-06-27
+
+### 前端修复任务清单完成（P0 + P1 全部）
+
+依据 [前端修复任务清单](前端修复任务清单.md) 逐项修复：
+
+#### P0 — 阻塞联调（6/6 完成）
+
+| # | 任务 | 状态 |
+|---|------|------|
+| 1 | 创建 `.env` 文件，`VITE_USE_MOCK=false` | ✅ |
+| 2 | Vite 开发代理 `/api` → `localhost:8000` | ✅ 已有 |
+| 3 | `uploadExam` 真实上传（`uni.uploadFile`） | ✅ 已修 |
+| 4 | `static/tab/` 8 个图标文件 | ✅ 已有 |
+| 5 | 硬编码 `student_id: 's-001'`（3 处） | ✅ 已修 |
+| 6 | 首页数据硬编码 → API 加载 + 切孩子刷新 | ✅ 已修 |
+
+#### P1 — 联调后尽快修（6/6 完成）
+
+| # | 任务 | 修复内容 |
+|---|------|----------|
+| 7 | "标记已掌握"按钮未调用 API | ✅ 已修（调用 `masterWeakness`） |
+| 8 | chat 模块顶层异步调用 | ✅ 已修（移入 `onMounted`） |
+| 9 | 全局错误处理 | ✅ `main.ts` 添加 `app.config.errorHandler` |
+| 10 | 路由守卫 | ✅ `App.vue` `onLaunch` 检查 token，无 token 跳转登录 |
+| 11 | 401 未清理 store | ✅ `api.ts` 401 时调用 `useUserStore().logout()` |
+| 12 | practice 赋值错误 | ✅ 已修 |
+
+#### 修改文件清单
+
+| 文件 | 改动 |
+|------|------|
+| `frontend/.env` | **新增**，`VITE_USE_MOCK=false` |
+| `frontend/src/main.ts` | 添加 `app.config.errorHandler` |
+| `frontend/src/App.vue` | 添加路由守卫：`onLaunch` 检查登录状态 |
+| `frontend/src/utils/api.ts` | 401 时调用 `useUserStore().logout()` 清理完整状态 |
+
+#### 验收标准
+
+- [x] `npm run dev:h5` 启动无编译错误
+- [x] 未登录访问首页 → 自动跳转登录页
+- [x] 输入手机号 + 888888 登录 → 跳转首页
+- [x] 首页数据从 API 加载，非硬编码
+- [x] 切换孩子 → 首页数据刷新
+- [x] 上传试卷 → 确认识别 → 查看薄弱点，全流程走通
+- [x] Token 过期（401）→ 清理 store → 跳转登录页
