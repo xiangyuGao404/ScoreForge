@@ -156,9 +156,9 @@ export async function uploadExam(params: {
     throw new Error('图片上传失败，请重试')
   }
 
-  // Step 2: 调用试卷上传接口，传 URL 列表
+  // Step 2: 调用 upload-by-urls 接口，传 URL 列表
   return request({
-    url: '/exams/upload',
+    url: '/exams/upload-by-urls',
     method: 'POST',
     data: {
       student_id: params.student_id,
