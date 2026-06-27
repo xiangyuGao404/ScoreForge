@@ -130,7 +130,8 @@ const pendingWeaknesses = ref<any[]>([])
 
 async function loadHomeData() {
   try {
-    const res = await getWeaknesses()
+    const sid = currentStudent.value?.id
+    const res = await getWeaknesses(sid)
     if (res.code === 0) {
       const list = res.data
       stats.value = {

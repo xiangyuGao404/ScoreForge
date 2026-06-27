@@ -487,3 +487,48 @@ ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:808
 - [ ] 测试生成题目：`POST /api/v1/practice/generate`（触发 AI 出题）
 - [ ] 测试掌握度评估：`POST /api/v1/practice/{id}/submit` → `GET /api/v1/practice/{id}/assessment`
 - [ ] 测试 PDF 生成：`POST /api/v1/pdf/generate` → `GET /api/v1/pdf/{id}/download`
+
+---
+
+## V1.0-frontend-integration — 2026-06-27
+
+### 前后端联调对接
+
+**目标**：前端 `service.ts` 与后端 API 格式完全对齐，支持 Mock/真实接口双模式无缝切换。
+
+#### 格式对齐修复（6 处）
+
+| # | 接口 | 问题 | 修复 |
+|---|------|------|------|
+| 1 | `POST /auth/login` | 后端返回 `{token, user_id, nickname, user_level}`，前端期望 `{token, user: {...}}` | `service.ts` login 函数增加响应格式转换 |
+| 2 | `GET /students` | 后端返回 `{students: [...]}`，前端期望 `[...]` | `service.ts` getStudents 解包 `students` 数组 |
+| 3 | `POST /exams/upload` | 后端期望 multipart/form-data 文件上传，前端原用 JSON | 改用 `uni.uploadFile` 发送 multipart 请求 |
+| 4 | `GET /weaknesses` | 后端必须传 `student_id` 查询参数，返回 `{weaknesses: [...]}` | `service.ts` getWeaknesses 增加 studentId 参数并解包响应 |
+| 5 | `POST/GET /chat/*` | 后端无 chat 端点 | 前端降级：sendChatMessage 返回固定提示，getChatHistory 返回空数组 |
+| 6 | 页面层调用 | home/weakness 页面未传 studentId | 更新 `loadHomeData()` 和 `onMounted` 传入当前学生 ID |
+
+#### 新增文件
+
+- `docs/前端联调指南.md` — 完整联调文档，含启动命令、环境变量、接口清单、格式对齐说明
+
+#### 切换模式
+
+```bash
+# Mock 模式（默认）
+cd frontend && npm run dev:h5
+
+# 真实接口模式
+cd frontend && VITE_USE_MOCK=false npm run dev:h5
+```
+
+#### 联调验证结果
+
+- ✅ 登录流程：`send-code` → `login` → token 存储 → 跳转首页
+- ✅ 学生列表：从 store 加载，切换孩子刷新数据
+- ✅ 试卷上传：multipart/form-data 格式正确发送
+- ✅ 识别确认：题目列表展示 + 逐题修正 + 提交
+- ✅ 诊断分析：薄弱点卡片展示 + 星级排序
+- ✅ 薄弱点列表：student_id 参数传递 + 数据解包
+- ✅ 在线答题：生成题目 → 答题 → 提交 → 掌握度评估
+- ✅ Chat：降级为 mock 提示，不报错
+- ⚠️ PDF：后端已实现，前端页面待 V1.1

@@ -84,6 +84,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { getWeaknesses, masterWeakness, generatePractice } from '../../utils/service'
+import { useStudentStore } from '../../store/student'
 
 interface Weakness {
   weakness_id: string
@@ -117,7 +118,9 @@ const filteredList = computed(() => {
 })
 
 onMounted(async () => {
-  const res = await getWeaknesses()
+  const studentStore = useStudentStore()
+  const sid = studentStore.currentStudent?.id
+  const res = await getWeaknesses(sid)
   if (res.code === 0) list.value = res.data
 })
 

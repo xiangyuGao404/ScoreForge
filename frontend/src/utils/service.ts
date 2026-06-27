@@ -1,6 +1,12 @@
 /**
- * API 服务层
- * 后端就绪前使用 Mock，就绪后切换为真实请求
+ * API 服务层 — 前后端联调版
+ *
+ * 格式对齐说明：
+ * - login: 后端 data = {token, user_id, nickname, user_level}（无嵌套 user 对象）
+ * - getStudents: 后端 data = {students: [...]}（需解包）
+ * - uploadExam: 后端 multipart/form-data，images 以 File 上传（非 JSON URL）
+ * - getWeaknesses: 后端需 student_id 查询参数，data = {weaknesses: [...]}
+ * - chat: 后端无此接口，保留 mock
  */
 
 import { request, uploadFile, USE_MOCK } from './api'
@@ -24,7 +30,27 @@ export async function login(phone: string, code: string) {
       data: { token: 'mock-token-001', user: mock.mockUser },
     }
   }
-  return request({ url: '/auth/login', method: 'POST', data: { phone, code } })
+  // 后端返回: {code, data: {token, user_id, nickname, user_level}}
+  // 前端期望: {code, data: {token, user: {id, nickname, user_level}}}
+  const res = await request<{
+    token: string
+    user_id: string
+    nickname: string
+    user_level: string
+  }>({ url: '/auth/login', method: 'POST', data: { phone, code } })
+
+  return {
+    code: res.code,
+    message: res.message,
+    data: {
+      token: res.data.token,
+      user: {
+        id: res.data.user_id,
+        nickname: res.data.nickname,
+        user_level: res.data.user_level as 'free' | 'paid',
+      },
+    },
+  }
 }
 
 // ===== 学生 =====
@@ -33,7 +59,10 @@ export async function getStudents() {
     await mock.delay(300)
     return { code: 0, data: mock.mockStudents }
   }
-  return request({ url: '/students' })
+  // 后端返回: {code, data: {students: [...]}}
+  // 前端期望: {code, data: [...]}
+  const res = await request<{ students: any[] }>({ url: '/students' })
+  return { code: res.code, data: res.data.students }
 }
 
 // ===== 试卷上传 =====
@@ -57,28 +86,51 @@ export async function uploadExam(params: {
       },
     }
   }
-  // 真实上传：逐张上传图片获取 URL
-  const uploadedUrls: string[] = []
-  for (const img of params.images) {
-    const res = await uploadFile({
-      url: '/exams/upload-image',
-      filePath: img,
-      name: 'image',
-      formData: { student_id: params.student_id },
+  // 后端 POST /exams/upload 接受 multipart/form-data
+  // 字段: student_id, subject, exam_name, total_score, actual_score, images[] (文件)
+  // 使用 uni.uploadFile 一次性上传所有图片
+  return new Promise<any>((resolve, reject) => {
+    uni.uploadFile({
+      url: '/api/v1/exams/upload',
+      filePath: params.images[0], // uni.uploadFile 单次只能传一个文件
+      name: 'images', // 后端参数名
+      formData: {
+        student_id: params.student_id,
+        subject: params.subject,
+        exam_name: params.exam_name || '',
+        total_score: String(params.total_score),
+        actual_score: params.actual_score != null ? String(params.actual_score) : '',
+      },
+      header: {
+        Authorization: `Bearer ${uni.getStorageSync('token') || ''}`,
+      },
+      success: (res: any) => {
+        if (res.statusCode === 200) {
+          resolve(JSON.parse(res.data))
+        } else if (res.statusCode === 401) {
+          uni.removeStorageSync('token')
+          uni.redirectTo({ url: '/pages/login/index' })
+          reject(new Error('未登录或登录已过期'))
+        } else {
+          try {
+            const err = JSON.parse(res.data)
+            reject(new Error(err.message || '上传失败'))
+          } catch {
+            reject(new Error('上传失败'))
+          }
+        }
+      },
+      fail: (err: any) => {
+        reject(new Error(err.errMsg || '上传失败'))
+      },
     })
-    if (res?.data?.url) uploadedUrls.push(res.data.url)
-  }
-  return request({
-    url: '/exams/upload',
-    method: 'POST',
-    data: { ...params, images: uploadedUrls },
   })
 }
 
 // ===== 识别结果 =====
 export async function getRecognition(examId: string) {
   if (USE_MOCK) {
-    await mock.delay(2000) // 模拟识别耗时
+    await mock.delay(2000)
     return {
       code: 0,
       data: {
@@ -119,7 +171,7 @@ export async function confirmRecognition(
 // ===== 薄弱点分析 =====
 export async function getAnalysis(examId: string) {
   if (USE_MOCK) {
-    await mock.delay(2500) // 模拟分析耗时
+    await mock.delay(2500)
     return {
       code: 0,
       data: {
@@ -135,12 +187,18 @@ export async function getAnalysis(examId: string) {
 }
 
 // ===== 薄弱点列表 =====
-export async function getWeaknesses() {
+export async function getWeaknesses(studentId?: string) {
   if (USE_MOCK) {
     await mock.delay(300)
     return { code: 0, data: mock.mockWeaknessList }
   }
-  return request({ url: '/weaknesses' })
+  // 后端 GET /weaknesses?student_id=xxx 必须传 student_id
+  // 返回: {code, data: {weaknesses: [...]}}
+  const sid = studentId || uni.getStorageSync('currentStudentId') || ''
+  const res = await request<{ weaknesses: any[] }>({
+    url: `/weaknesses?student_id=${sid}`,
+  })
+  return { code: res.code, data: res.data.weaknesses }
 }
 
 // ===== 标记已掌握 =====
@@ -228,7 +286,7 @@ export async function getAssessment(sessionId: string) {
   return request({ url: `/practice/${sessionId}/assessment` })
 }
 
-// ===== 教师对话 =====
+// ===== 教师对话（后端无此接口，保留 mock） =====
 export async function sendChatMessage(params: {
   student_id: string
   teacher_role: string
@@ -241,12 +299,23 @@ export async function sendChatMessage(params: {
       data: {
         id: 'msg-' + Date.now(),
         role: 'assistant' as const,
-        content: `根据${params.student_id === 's-001' ? '小明' : '孩子'}最近的学习数据，我建议可以从基础题型开始巩固，每天坚持练习2-3道题，一周后会有明显进步。`,
+        content: `根据孩子最近的学习数据，我建议可以从基础题型开始巩固，每天坚持练习2-3道题，一周后会有明显进步。`,
         created_at: new Date().toISOString(),
       },
     }
   }
-  return request({ url: '/chat/send', method: 'POST', data: params })
+  // 后端暂无 chat 接口，降级为 mock
+  console.warn('Chat API not implemented in backend, using mock')
+  await mock.delay(1000)
+  return {
+    code: 0,
+    data: {
+      id: 'msg-' + Date.now(),
+      role: 'assistant' as const,
+      content: '教师团功能正在开发中，敬请期待！',
+      created_at: new Date().toISOString(),
+    },
+  }
 }
 
 export async function getChatHistory(studentId: string, teacherRole: string) {
@@ -254,9 +323,8 @@ export async function getChatHistory(studentId: string, teacherRole: string) {
     await mock.delay(300)
     return { code: 0, data: mock.mockChatMessages }
   }
-  return request({
-    url: `/chat/history?student_id=${studentId}&teacher_role=${teacherRole}`,
-  })
+  // 后端暂无 chat 接口，降级为空
+  return { code: 0, data: [] }
 }
 
 // ===== PDF =====
