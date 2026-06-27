@@ -27,7 +27,7 @@ VISION_PROMPT = """你是一位试卷识别专家。请仔细分析这张试卷�
 
 对于每道题，请输出：
 1. 题号
-2. 题目内容（完整抄写）
+2. 题目内容（简要描述，不超过50字）
 3. 学生写的答案（如果能看到）
 4. 是否正确（根据批改痕迹判断：✓/✗、分数、红笔批注）
 5. 该题得分
@@ -35,29 +35,121 @@ VISION_PROMPT = """你是一位试卷识别专家。请仔细分析这张试卷�
 7. 置信度（0-1，你对识别结果的确信程度）
 
 注意事项：
+- 题目内容请简要描述，不要完整抄写
 - 如果看不清某道题，置信度设为 0.5 以下
 - 如果没有批改痕迹，is_correct 设为 null
 - 如果分数看不清，score_got 设为 null
-- 数学公式请用 LaTeX 格式表示
-- 每道题的 score_total 请根据试卷总分和题数合理推断
 
 请严格返回 JSON 数组格式：
-[{{"question_no":1, "question_content":"...", "student_answer":"...", "is_correct":true, "score_got":5, "score_total":5, "confidence":0.95}}]
+[{{"question_no":1, "question_content":"简要描述", "student_answer":"答案", "is_correct":true, "score_got":5, "score_total":5, "confidence":0.9}}]
 
 只返回 JSON 数组，不要输出任何其他文字。"""
+
+
+def _parse_json_robust(text: str):
+    """Parse JSON from AI response, handling truncated/malformed JSON."""
+    import re
+
+    # Strip markdown code blocks
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.split("\n", 1)
+        if len(lines) > 1:
+            text = lines[1]
+        if text.rstrip().endswith("```"):
+            text = text.rstrip()[:-3].rstrip()
+
+    # Try normal parse first
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Try to fix truncated JSON
+    # Find the last complete object in array
+    last_bracket = text.rfind('}')
+    if last_bracket > 0:
+        truncated = text[:last_bracket + 1]
+        # Count open/close braces to find array end
+        open_count = truncated.count('[')
+        close_count = truncated.count(']')
+        if open_count > close_count:
+            truncated += ']' * (open_count - close_count)
+        try:
+            return json.loads(truncated)
+        except json.JSONDecodeError:
+            pass
+
+    # Try to extract any JSON array from the text
+    match = re.search(r'\[.*\]', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group())
+        except json.JSONDecodeError:
+            pass
+
+    # Last resort: try to extract individual objects
+    objects = []
+    for match in re.finditer(r'\{[^{}]+\}', text):
+        try:
+            obj = json.loads(match.group())
+            if 'question_no' in obj or 'question_content' in obj:
+                objects.append(obj)
+        except json.JSONDecodeError:
+            continue
+
+    if objects:
+        return objects
+
+    logger.error(f"Failed to parse JSON from response (length={len(text)})")
+    return []
 
 
 class OCRService:
     """Service for recognizing exam papers using multimodal AI."""
 
     def _encode_image(self, image_path: str) -> str:
-        """Encode image file to base64 string."""
+        """Encode image file to base64 string with compression."""
         try:
+            return self._encode_compressed_image(image_path)
+        except ImportError:
+            logger.warning("PIL not available, encoding without compression")
             with open(image_path, "rb") as f:
                 return base64.b64encode(f.read()).decode("utf-8")
         except Exception as e:
             logger.error(f"Failed to encode image {image_path}: {e}")
             return ""
+
+    def _encode_compressed_image(self, image_path: str) -> str:
+        """Compress image and encode to base64."""
+        from PIL import Image
+        import io
+
+        MAX_DIMENSION = 1600
+        MAX_SIZE_KB = 500
+
+        img = Image.open(image_path)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGB')
+
+        width, height = img.size
+        if max(width, height) > MAX_DIMENSION:
+            ratio = MAX_DIMENSION / max(width, height)
+            new_size = (int(width * ratio), int(height * ratio))
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
+            logger.info(f"Resized {width}x{height} -> {new_size[0]}x{new_size[1]}")
+
+        for quality in [80, 60, 45, 30]:
+            buffer = io.BytesIO()
+            img.save(buffer, format='JPEG', quality=quality, optimize=True)
+            size_kb = buffer.tell() / 1024
+            if size_kb <= MAX_SIZE_KB:
+                logger.info(f"Compressed to {size_kb:.0f}KB (q={quality})")
+                return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG', quality=30, optimize=True)
+        return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
     def _get_mime_type(self, image_path: str) -> str:
         """Get MIME type from file extension."""
@@ -127,15 +219,15 @@ class OCRService:
             response = await client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": content}],
-                max_tokens=4096,
+                max_tokens=8192,
                 temperature=0.1,
             )
 
             text = response.choices[0].message.content
-            logger.info(f"Vision model response length: {len(text)}")
+            logger.info(f"Vision model response length: {len(text)} chars")
 
-            # Parse result
-            result = _parse_json_from_text(text)
+            # Parse result - handle truncated JSON
+            result = _parse_json_robust(text)
             questions = _extract_list_from_response(result, ["questions"])
 
             if not questions:
