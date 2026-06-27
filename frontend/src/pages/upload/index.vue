@@ -212,7 +212,11 @@ async function handleUpload() {
   uploading.value = true
   step.value = 3
 
+  // 显示 loading 提示，告知用户需要等待
+  uni.showLoading({ title: '图片上传中...', mask: true })
+
   try {
+    // 先上传图片（速度较快）
     const res = await uploadExam({
       student_id: form.student_id,
       subject: form.subject,
@@ -223,7 +227,8 @@ async function handleUpload() {
     })
 
     if (res.code === 0) {
-      uni.showToast({ title: '上传成功，正在识别...', icon: 'success' })
+      uni.hideLoading()
+      uni.showToast({ title: '识别完成', icon: 'success' })
       // 跳转到识别确认页
       setTimeout(() => {
         uni.navigateTo({
@@ -232,7 +237,17 @@ async function handleUpload() {
       }, 500)
     }
   } catch (e: any) {
-    uni.showToast({ title: e.message || '上传失败', icon: 'none' })
+    uni.hideLoading()
+    const msg = e.message || '上传失败'
+    if (msg.includes('timeout')) {
+      uni.showModal({
+        title: '识别超时',
+        content: 'AI 识别耗时较长，请稍后在"首页 → 最近诊断"中查看结果。',
+        showCancel: false,
+      })
+    } else {
+      uni.showToast({ title: msg, icon: 'none' })
+    }
     step.value = 2
   } finally {
     uploading.value = false

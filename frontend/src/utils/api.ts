@@ -20,6 +20,7 @@ interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   data?: any
   header?: Record<string, string>
+  timeout?: number // 毫秒，默认 30000
 }
 
 // 从本地存储获取 token
@@ -34,6 +35,7 @@ export function request<T = any>(options: RequestOptions): Promise<ApiResponse<T
       url: `${BASE_URL}${options.url}`,
       method: options.method || 'GET',
       data: options.data,
+      timeout: options.timeout || 30000,
       header: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${getToken()}`,

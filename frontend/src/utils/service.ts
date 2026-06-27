@@ -157,9 +157,11 @@ export async function uploadExam(params: {
   }
 
   // Step 2: 调用 upload-by-urls 接口，传 URL 列表
+  // 后端同步执行 AI 识别，可能需要 30-120 秒，设置 180s 超时
   return request({
     url: '/exams/upload-by-urls',
     method: 'POST',
+    timeout: 180000,
     data: {
       student_id: params.student_id,
       subject: params.subject,
