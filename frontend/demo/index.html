@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ScoreForge UI Demo</title>
+  <style>
+    /* ===== CSS Variables - Design Tokens ===== */
+    :root {
+      /* Colors */
+      --primary: #2563EB;
+      --primary-light: #DBEAFE;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --text-primary: #1E293B;
+      --text-secondary: #64748B;
+      --border: #E2E8F0;
+
+      /* Star Rating Colors */
+      --star-5-bg: #FEF2F2;
+      --star-4-bg: #FFF7ED;
+      --star-3-bg: #FFFBEB;
+      --star-2-bg: #F8FAFC;
+      --star-1-bg: #F8FAFC;
+
+      /* Typography */
+      --font-stack: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+
+      /* Spacing */
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 12px;
+      --space-lg: 16px;
+      --space-xl: 24px;
+      --space-2xl: 32px;
+
+      /* Border Radius */
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+    }
+
+    /* ===== Reset & Base ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-stack);
+      background: var(--bg);
+      color: var(--text-primary);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ===== Mobile Frame ===== */
+    .phone-frame {
+      width: 375px;
+      height: 812px;
+      margin: 40px auto;
+      background: var(--bg);
+      border-radius: 40px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .phone-frame::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 150px;
+      height: 30px;
+      background: #000;
+      border-radius: 0 0 20px 20px;
+      z-index: 100;
+    }
+
+    /* ===== Status Bar ===== */
+    .status-bar {
+      height: 44px;
+      background: var(--card-bg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      font-size: 14px;
+      font-weight: 600;
+      position: relative;
+      z-index: 50;
+    }
+
+    .status-bar .time {
+      margin-left: 20px;
+    }
+
+    .status-bar .icons {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .status-bar .icons span {
+      font-size: 12px;
+    }
+
+    /* ===== Navigation Bar ===== */
+    .nav-bar {
+      height: 56px;
+      background: var(--card-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-bar .back-btn {
+      position: absolute;
+      left: 16px;
+      font-size: 20px;
+      color: var(--text-primary);
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 8px;
+    }
+
+    .nav-bar .title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* ===== Page Content ===== */
+    .page-content {
+      height: calc(812px - 44px - 56px - 83px);
+      overflow-y: auto;
+      padding: var(--space-lg);
+    }
+
+    .page-content::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* ===== Tab Bar ===== */
+    .tab-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 83px;
+      background: var(--card-bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-start;
+      padding-top: 8px;
+    }
+
+    .tab-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .tab-item .icon {
+      font-size: 24px;
+      color: var(--text-secondary);
+    }
+
+    .tab-item .label {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .tab-item.active .icon,
+    .tab-item.active .label {
+      color: var(--primary);
+    }
+
+    /* ===== Typography ===== */
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 32px;
+      color: var(--text-primary);
+    }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 28px;
+      color: var(--text-primary);
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 24px;
+      color: var(--text-primary);
+    }
+
+    .body-text {
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 22px;
+      color: var(--text-primary);
+    }
+
+    .caption {
+      font-size: 13px;
+      font-weight: 400;
+      line-height: 18px;
+      color: var(--text-secondary);
+    }
+
+    .small-text {
+      font-size: 11px;
+      font-weight: 400;
+      line-height: 16px;
+      color: var(--text-secondary);
+    }
+
+    /* ===== Cards ===== */
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      border: 1px solid var(--border);
+    }
+
+    .card-large {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: var(--space-lg);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      border-left: 4px solid var(--primary);
+    }
+
+    /* ===== Buttons ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 44px;
+      padding: 0 24px;
+      border-radius: var(--radius-sm);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+      outline: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #1D4ED8;
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn-text {
+      background: transparent;
+      color: var(--primary);
+      padding: 0;
+      height: auto;
+    }
+
+    .btn-disabled {
+      background: #CBD5E1;
+      color: #94A3B8;
+      cursor: not-allowed;
+    }
+
+    .btn-block {
+      width: 100%;
+    }
+
+    /* ===== Form Elements ===== */
+    .form-group {
+      margin-bottom: var(--space-lg);
+    }
+
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: var(--space-sm);
+    }
+
+    .form-input {
+      width: 100%;
+      height: 44px;
+      padding: 0 16px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 15px;
+      color: var(--text-primary);
+      background: var(--card-bg);
+      transition: all 0.2s ease;
+      outline: none;
+      font-family: var(--font-stack);
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-light);
+    }
+
+    .form-input::placeholder {
+      color: #94A3B8;
+    }
+
+    .form-select {
+      width: 100%;
+      height: 44px;
+      padding: 0 16px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 15px;
+      color: var(--text-primary);
+      background: var(--card-bg);
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      cursor: pointer;
+      font-family: var(--font-stack);
+    }
+
+    .form-select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-light);
+      outline: none;
+    }
+
+    /* ===== Upload Area ===== */
+    .upload-area {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px 20px;
+      text-align: center;
+      background: var(--card-bg);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .upload-area:hover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .upload-area .icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .upload-area .title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .upload-area .desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* ===== Image Preview Grid ===== */
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .image-preview {
+      aspect-ratio: 1;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      position: relative;
+      background: #E2E8F0;
+    }
+
+    .image-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .image-preview .delete-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 24px;
+      height: 24px;
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ===== Chip/Tag ===== */
+    .chip-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      height: 36px;
+      padding: 0 16px;
+      border-radius: var(--radius-full);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1.5px solid var(--border);
+      background: var(--card-bg);
+      color: var(--text-primary);
+    }
+
+    .chip.selected {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .chip:hover:not(.selected) {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* ===== Score Input Row ===== */
+    .score-row {
+      display: flex;
+      gap: 16px;
+    }
+
+    .score-row .form-group {
+      flex: 1;
+    }
+
+    /* ===== Star Rating ===== */
+    .star-rating {
+      display: flex;
+      gap: 4px;
+    }
+
+    .star-rating .star {
+      font-size: 16px;
+      color: #E2E8F0;
+    }
+
+    .star-rating .star.active {
+      color: var(--warning);
+    }
+
+    /* ===== Weakness Card ===== */
+    .weakness-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .weakness-card.star-5 {
+      border-left: 4px solid var(--danger);
+      background: var(--star-5-bg);
+    }
+
+    .weakness-card.star-4 {
+      border-left: 4px solid var(--warning);
+      background: var(--star-4-bg);
+    }
+
+    .weakness-card.star-3 {
+      border-left: 4px solid #FCD34D;
+      background: var(--star-3-bg);
+    }
+
+    .weakness-card.star-2,
+    .weakness-card.star-1 {
+      border-left: 4px solid var(--border);
+    }
+
+    .weakness-card .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .weakness-card .knowledge-point {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      flex: 1;
+    }
+
+    .weakness-card .star-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .weakness-card.star-5 .star-badge {
+      background: #FEE2E2;
+      color: #991B1B;
+    }
+
+    .weakness-card.star-4 .star-badge {
+      background: #FEF3C7;
+      color: #92400E;
+    }
+
+    .weakness-card.star-3 .star-badge {
+      background: #FEF9C3;
+      color: #854D0E;
+    }
+
+    .weakness-card .reason {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 20px;
+      margin-bottom: 16px;
+    }
+
+    .weakness-card .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .weakness-card .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-badge.not-started {
+      background: #F1F5F9;
+      color: #64748B;
+    }
+
+    .status-badge.practicing {
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .status-badge.mastered {
+      background: #D1FAE5;
+      color: #065F46;
+    }
+
+    /* ===== Exam Score Header ===== */
+    .exam-score-header {
+      background: linear-gradient(135deg, var(--primary) 0%, #3B82F6 100%);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      color: white;
+      margin-bottom: var(--space-xl);
+    }
+
+    .exam-score-header .score-label {
+      font-size: 14px;
+      opacity: 0.8;
+      margin-bottom: 4px;
+    }
+
+    .exam-score-header .score-value {
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .exam-score-header .score-total {
+      font-size: 16px;
+      opacity: 0.8;
+    }
+
+    .exam-score-header .exam-info {
+      display: flex;
+      gap: 16px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .exam-score-header .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .exam-score-header .info-label {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    .exam-score-header .info-value {
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    /* ===== Section Header ===== */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-lg);
+    }
+
+    .section-header .title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .section-header .count {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* ===== Divider ===== */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: var(--space-xl) 0;
+    }
+
+    /* ===== Helper Classes ===== */
+    .mb-xs { margin-bottom: var(--space-xs); }
+    .mb-sm { margin-bottom: var(--space-sm); }
+    .mb-md { margin-bottom: var(--space-md); }
+    .mb-lg { margin-bottom: var(--space-lg); }
+    .mb-xl { margin-bottom: var(--space-xl); }
+    .mb-2xl { margin-bottom: var(--space-2xl); }
+
+    .mt-sm { margin-top: var(--space-sm); }
+    .mt-md { margin-top: var(--space-md); }
+    .mt-lg { margin-top: var(--space-lg); }
+
+    .text-center { text-align: center; }
+    .text-primary { color: var(--primary); }
+    .text-success { color: var(--success); }
+    .text-warning { color: var(--warning); }
+    .text-danger { color: var(--danger); }
+
+    /* ===== Page Switcher (Demo Only) ===== */
+    .demo-switcher {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      background: white;
+      padding: 8px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+    }
+
+    .demo-switcher button {
+      padding: 8px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: var(--font-stack);
+    }
+
+    .demo-switcher button.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .demo-switcher button:not(.active) {
+      background: transparent;
+      color: var(--text-primary);
+    }
+
+    /* ===== Page Container ===== */
+    .page-container {
+      display: none;
+    }
+
+    .page-container.active {
+      display: block;
+    }
+
+    /* ===== Progress Bar ===== */
+    .progress-bar {
+      height: 4px;
+      background: #E2E8F0;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar .progress {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+
+    /* ===== Analysis Summary ===== */
+    .analysis-summary {
+      display: flex;
+      gap: 12px;
+      margin-bottom: var(--space-xl);
+    }
+
+    .summary-item {
+      flex: 1;
+      background: var(--card-bg);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      border: 1px solid var(--border);
+    }
+
+    .summary-item .value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+
+    .summary-item .label {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* ===== Action Bar ===== */
+    .action-bar {
+      position: sticky;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 16px;
+      background: var(--card-bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+    }
+
+    .action-bar .btn {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <!-- Demo Page Switcher -->
+  <div class="demo-switcher">
+    <button class="active" onclick="showPage('upload')">上传试卷</button>
+    <button onclick="showPage('result')">诊断结果</button>
+  </div>
+
+  <!-- Page 1: Upload -->
+  <div id="upload-page" class="page-container active">
+    <div class="phone-frame">
+      <!-- Status Bar -->
+      <div class="status-bar">
+        <span class="time">9:41</span>
+        <div class="icons">
+          <span>📶</span>
+          <span>📡</span>
+          <span>🔋</span>
+        </div>
+      </div>
+
+      <!-- Navigation Bar -->
+      <div class="nav-bar">
+        <button class="back-btn">←</button>
+        <span class="title">上传试卷</span>
+      </div>
+
+      <!-- Page Content -->
+      <div class="page-content">
+        <!-- Upload Area -->
+        <div class="upload-area mb-xl">
+          <div class="icon">📸</div>
+          <div class="title">点击拍照或选择图片</div>
+          <div class="desc">支持 JPG、PNG 格式，最多 5 张</div>
+        </div>
+
+        <!-- Image Preview Grid -->
+        <div class="image-grid mb-xl">
+          <div class="image-preview">
+            <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">📄</div>
+            <button class="delete-btn">×</button>
+          </div>
+          <div class="image-preview">
+            <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">📄</div>
+            <button class="delete-btn">×</button>
+          </div>
+          <div class="image-preview" style="border: 2px dashed var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--bg);">
+            <span style="font-size: 32px; color: var(--text-secondary);">+</span>
+          </div>
+        </div>
+
+        <!-- Form Section -->
+        <div class="card mb-lg">
+          <h3 class="mb-lg">考试信息</h3>
+
+          <!-- Student Selector -->
+          <div class="form-group">
+            <label class="form-label">选择孩子</label>
+            <select class="form-select">
+              <option>小明 - 初三</option>
+              <option>小红 - 初二</option>
+            </select>
+          </div>
+
+          <!-- Subject Selector -->
+          <div class="form-group">
+            <label class="form-label">学科</label>
+            <div class="chip-group">
+              <span class="chip selected">数学</span>
+              <span class="chip">道法</span>
+              <span class="chip">历史</span>
+            </div>
+          </div>
+
+          <!-- Exam Name -->
+          <div class="form-group">
+            <label class="form-label">考试名称</label>
+            <input type="text" class="form-input" placeholder="如：月考、期中考试" value="期中考试">
+          </div>
+
+          <!-- Score Input -->
+          <div class="score-row">
+            <div class="form-group">
+              <label class="form-label">满分</label>
+              <input type="number" class="form-input" placeholder="120" value="120">
+            </div>
+            <div class="form-group">
+              <label class="form-label">得分</label>
+              <input type="number" class="form-input" placeholder="选填" value="73">
+            </div>
+          </div>
+        </div>
+
+        <!-- Tip Card -->
+        <div class="card" style="background: #FFFBEB; border-color: #FDE68A;">
+          <div style="display: flex; gap: 12px; align-items: flex-start;">
+            <span style="font-size: 20px;">💡</span>
+            <div>
+              <div class="body-text mb-xs" style="font-weight: 500;">拍照小贴士</div>
+              <div class="caption">• 确保光线充足，避免反光<br>• 试卷平整，不要遮挡题目<br>• 拍摄完整，包含所有题目</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Bar -->
+      <div class="action-bar">
+        <button class="btn btn-primary btn-block">开始 AI 诊断</button>
+      </div>
+
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <a class="tab-item active">
+          <span class="icon">🏠</span>
+          <span class="label">首页</span>
+        </a>
+        <a class="tab-item">
+          <span class="icon">📊</span>
+          <span class="label">薄弱点</span>
+        </a>
+        <a class="tab-item">
+          <span class="icon">💬</span>
+          <span class="label">教师团</span>
+        </a>
+        <a class="tab-item">
+          <span class="icon">⚙️</span>
+          <span class="label">设置</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 2: Result -->
+  <div id="result-page" class="page-container">
+    <div class="phone-frame">
+      <!-- Status Bar -->
+      <div class="status-bar">
+        <span class="time">9:41</span>
+        <div class="icons">
+          <span>📶</span>
+          <span>📡</span>
+          <span>🔋</span>
+        </div>
+      </div>
+
+      <!-- Navigation Bar -->
+      <div class="nav-bar">
+        <button class="back-btn">←</button>
+        <span class="title">诊断结果</span>
+      </div>
+
+      <!-- Page Content -->
+      <div class="page-content">
+        <!-- Score Header -->
+        <div class="exam-score-header">
+          <div class="score-label">本次得分</div>
+          <div class="score-value">73</div>
+          <div class="score-total">/ 120 分</div>
+          <div class="exam-info">
+            <div class="info-item">
+              <span class="info-label">学科</span>
+              <span class="info-value">数学</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">考试</span>
+              <span class="info-value">期中考试</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">正确率</span>
+              <span class="info-value">60.8%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Analysis Summary -->
+        <div class="analysis-summary">
+          <div class="summary-item">
+            <div class="value">3</div>
+            <div class="label">薄弱知识点</div>
+          </div>
+          <div class="summary-item">
+            <div class="value">2</div>
+            <div class="label">高优先级</div>
+          </div>
+          <div class="summary-item">
+            <div class="value">15</div>
+            <div class="label">预计提分</div>
+          </div>
+        </div>
+
+        <!-- Weakness Section -->
+        <div class="section-header">
+          <span class="title">薄弱点分析</span>
+          <span class="count">共 3 个</span>
+        </div>
+
+        <!-- Weakness Card 1 - 5 Stars -->
+        <div class="weakness-card star-5">
+          <div class="card-header">
+            <span class="knowledge-point">函数基础概念</span>
+            <span class="star-badge">⭐ 5星</span>
+          </div>
+          <div class="reason">函数是中考必考重点，占分约15分。孩子本次函数题全错，但属于基础概念题，掌握后提分空间大。</div>
+          <div class="card-footer">
+            <span class="status-badge not-started">未开始</span>
+            <button class="btn btn-text" style="height: auto; padding: 0; font-size: 14px;">开始练习 →</button>
+          </div>
+        </div>
+
+        <!-- Weakness Card 2 - 4 Stars -->
+        <div class="weakness-card star-4">
+          <div class="card-header">
+            <span class="knowledge-point">一元二次方程计算</span>
+            <span class="star-badge">⭐ 4星</span>
+          </div>
+          <div class="reason">方程计算错误集中在求根公式应用，属于计算粗心而非概念不清，短期练习可明显改善。</div>
+          <div class="card-footer">
+            <span class="status-badge not-started">未开始</span>
+            <button class="btn btn-text" style="height: auto; padding: 0; font-size: 14px;">开始练习 →</button>
+          </div>
+        </div>
+
+        <!-- Weakness Card 3 - 3 Stars -->
+        <div class="weakness-card star-3">
+          <div class="card-header">
+            <span class="knowledge-point">几何证明</span>
+            <span class="star-badge">⭐ 3星</span>
+          </div>
+          <div class="reason">几何证明需要较强的逻辑推理能力，短期提分难度较大，建议放在后期攻克。</div>
+          <div class="card-footer">
+            <span class="status-badge not-started">未开始</span>
+            <button class="btn btn-text" style="height: auto; padding: 0; font-size: 14px;">开始练习 →</button>
+          </div>
+        </div>
+
+        <!-- AI Suggestion Card -->
+        <div class="card mt-lg" style="background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); border-color: #C7D2FE;">
+          <div style="display: flex; gap: 12px; align-items: flex-start;">
+            <span style="font-size: 24px;">🤖</span>
+            <div>
+              <div class="body-text mb-sm" style="font-weight: 600;">AI 学习建议</div>
+              <div class="caption" style="color: var(--text-primary); line-height: 1.6;">
+                建议优先练习「函数基础概念」，这是中考高频考点且孩子目前完全未掌握。每天练习 2-3 道题，预计 3-5 天可以明显提升。
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height: 20px;"></div>
+      </div>
+
+      <!-- Action Bar -->
+      <div class="action-bar">
+        <button class="btn btn-secondary">查看全部薄弱点</button>
+        <button class="btn btn-primary">开始针对性练习</button>
+      </div>
+
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <a class="tab-item active">
+          <span class="icon">🏠</span>
+          <span class="label">首页</span>
+        </a>
+        <a class="tab-item">
+          <span class="icon">📊</span>
+          <span class="label">薄弱点</span>
+        </a>
+        <a class="tab-item">
+          <span class="icon">💬</span>
+          <span class="label">教师团</span>
+        </a>
+        <a class="tab-item">
+          <span class="icon">⚙️</span>
+          <span class="label">设置</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showPage(page) {
+      // Update page visibility
+      document.querySelectorAll('.page-container').forEach(el => {
+        el.classList.remove('active');
+      });
+      document.getElementById(page + '-page').classList.add('active');
+
+      // Update button state
+      document.querySelectorAll('.demo-switcher button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+    }
+  </script>
+</body>
+</html>

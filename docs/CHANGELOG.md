@@ -138,3 +138,81 @@ backend/
 ├── .env.example         # 环境变量示例
 └── README.md            # 后端文档
 ```
+
+---
+
+## V1.0-frontend — 2026-06-27
+
+### 前端工程实现（全部页面完成）
+
+**技术栈**：uni-app (Vue3 + TypeScript) + Pinia + SCSS
+
+#### 工程搭建
+- uni-app 项目初始化（Vue3 + Vite + TypeScript）
+- Pinia 状态管理集成
+- SCSS 设计系统变量（色彩、字体、间距、圆角、阴影 — 严格遵循技术设计说明书第五章）
+- API 请求封装（`utils/api.ts`）— 支持 Token 自动注入、401 跳转
+- Mock 数据层（`utils/mock.ts`）— 后端未就绪时自动使用 Mock 数据
+- API 服务层（`utils/service.ts`）— 统一接口调用，一键切换 Mock/真实请求
+
+#### 已实现页面（10 个）
+
+| 页面 | 路径 | 核心功能 | 状态 |
+|------|------|----------|------|
+| 登录页 | `/pages/login/index` | 手机号+验证码登录、微信登录入口、倒计时、协议展示 | ✅ |
+| 首页 | `/pages/home/index` | 孩子切换器、概览统计、最近诊断卡片、待练薄弱点列表、快捷入口 | ✅ |
+| **上传试卷页** | `/pages/upload/index` | 步骤条引导、图片选择(1-5张)、学科选择、考试名称标签、满分/得分输入、表单校验 | ✅ |
+| **识别确认页** | `/pages/exam/confirm` | 加载动画、题目列表(对错标记)、逐题修正(点击切换)、低置信度黄标提醒、得分编辑、统计摘要 | ✅ |
+| **诊断结果页** | `/pages/exam/analysis` | 考试概览(得分率)、薄弱点卡片(星级+色条+说明)、"开始练习"按钮、一键全部练习 | ✅ |
+| 薄弱点总览 | `/pages/weakness/index` | 状态筛选标签(全部/未开始/练习中/已掌握)、掌握度进度条、标记已掌握 | ✅ |
+| 在线答题 | `/pages/practice/index` | 进度条、题目卡片(难度标签)、选择题/填空题答题区、提交后显示参考答案+解析 | ✅ |
+| 练习结果 | `/pages/practice/result` | 掌握度环形仪表盘、趋势标签、错误模式分析、AI建议(继续/已掌握) | ✅ |
+| 教师对话 | `/pages/chat/index` | 角色切换(数学/道法/历史/班主任)、聊天气泡、打字动画、发送消息 | ✅ |
+| 设置页 | `/pages/settings/index` | 用户信息卡片、孩子管理、API模式切换(内置/自备Key)、退出登录 | ✅ |
+
+#### 设计系统规范落地
+
+- **色彩**：主色 `#2563EB`、成功 `#10B981`、警告 `#F59E0B`、危险 `#EF4444`、背景 `#F8FAFC`
+- **卡片**：圆角 16rpx、阴影 `0 2px 8px rgba(0,0,0,0.08)`、左侧色条标识星级
+- **按钮**：主按钮高度 88rpx、圆角 16rpx、禁用态灰色
+- **星级展示**：5星红底、4星橙底、3星黄底、2/1星灰底
+- **低置信度提醒**：confidence < 0.7 黄色警告条
+- **底部导航栏**：首页 / 薄弱点 / 教师团 / 设置
+
+#### Mock 数据说明
+- 当前所有接口使用 Mock 数据（`utils/api.ts` 中 `USE_MOCK = true`）
+- 后端就绪后将 `USE_MOCK` 改为 `false` 即可无缝切换
+- Mock 数据严格遵循技术设计说明书 API 响应格式
+
+#### 文件清单
+```
+frontend/
+├── src/
+│   ├── pages/              # 10 个页面
+│   │   ├── login/index.vue
+│   │   ├── home/index.vue
+│   │   ├── upload/index.vue
+│   │   ├── exam/confirm.vue
+│   │   ├── exam/analysis.vue
+│   │   ├── weakness/index.vue
+│   │   ├── practice/index.vue
+│   │   ├── practice/result.vue
+│   │   ├── chat/index.vue
+│   │   └── settings/index.vue
+│   ├── store/              # Pinia 状态管理
+│   │   ├── user.ts
+│   │   └── student.ts
+│   ├── utils/              # 工具层
+│   │   ├── api.ts          # 请求封装
+│   │   ├── mock.ts         # Mock 数据
+│   │   └── service.ts      # API 服务层
+│   ├── static/tab/         # 底部导航图标
+│   ├── App.vue
+│   ├── main.ts
+│   ├── pages.json          # 路由配置
+│   ├── manifest.json
+│   └── uni.scss            # 设计系统变量
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
+```
