@@ -1,0 +1,105 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "ScoreForge"
+      }
+    },
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/upload/index",
+      "style": {
+        "navigationBarTitleText": "上传试卷"
+      }
+    },
+    {
+      "path": "pages/exam/confirm",
+      "style": {
+        "navigationBarTitleText": "确认识别结果"
+      }
+    },
+    {
+      "path": "pages/exam/analysis",
+      "style": {
+        "navigationBarTitleText": "诊断结果"
+      }
+    },
+    {
+      "path": "pages/weakness/index",
+      "style": {
+        "navigationBarTitleText": "薄弱点"
+      }
+    },
+    {
+      "path": "pages/practice/index",
+      "style": {
+        "navigationBarTitleText": "在线答题"
+      }
+    },
+    {
+      "path": "pages/practice/result",
+      "style": {
+        "navigationBarTitleText": "练习结果"
+      }
+    },
+    {
+      "path": "pages/chat/index",
+      "style": {
+        "navigationBarTitleText": "教师团"
+      }
+    },
+    {
+      "path": "pages/settings/index",
+      "style": {
+        "navigationBarTitleText": "设置"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "ScoreForge",
+    "navigationBarBackgroundColor": "#2563EB",
+    "backgroundColor": "#F8FAFC",
+    "app-plus": {
+      "titleNView": false
+    }
+  },
+  "tabBar": {
+    "color": "#94A3B8",
+    "selectedColor": "#2563EB",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页",
+        "iconPath": "static/tab/home.png",
+        "selectedIconPath": "static/tab/home-active.png"
+      },
+      {
+        "pagePath": "pages/weakness/index",
+        "text": "薄弱点",
+        "iconPath": "static/tab/weakness.png",
+        "selectedIconPath": "static/tab/weakness-active.png"
+      },
+      {
+        "pagePath": "pages/chat/index",
+        "text": "教师团",
+        "iconPath": "static/tab/chat.png",
+        "selectedIconPath": "static/tab/chat-active.png"
+      },
+      {
+        "pagePath": "pages/settings/index",
+        "text": "设置",
+        "iconPath": "static/tab/settings.png",
+        "selectedIconPath": "static/tab/settings-active.png"
+      }
+    ]
+  }
+}

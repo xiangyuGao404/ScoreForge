@@ -1,0 +1,121 @@
+"""PDF generation and download API endpoints."""
+
+import os
+import uuid
+import logging
+
+from fastapi import APIRouter, Depends
+from fastapi.responses import FileResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.config import settings
+from app.core.exceptions import NotFoundException, ForbiddenException, BadRequestException
+from app.models.user import User, Student
+from app.models.knowledge import KnowledgePoint
+from app.models.weakness import Weakness
+from app.models.practice import PracticeSession, PracticeQuestion
+from app.schemas.common import APIResponse
+from app.schemas.pdf import PDFGenerateRequest, PDFGenerateResponse
+from app.api.deps import get_current_user
+from app.services.pdf_service import pdf_service
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/pdf", tags=["PDF"])
+
+
+@router.post("/generate", response_model=APIResponse[PDFGenerateResponse])
+async def generate_pdf(
+    req: PDFGenerateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """生成练习题 PDF。"""
+    session_id = uuid.UUID(req.session_id)
+
+    # Verify session ownership
+    session_result = await db.execute(
+        select(PracticeSession, Weakness, KnowledgePoint, Student)
+        .join(Weakness, PracticeSession.weakness_id == Weakness.id)
+        .join(KnowledgePoint, Weakness.knowledge_point_id == KnowledgePoint.id)
+        .join(Student, PracticeSession.student_id == Student.id)
+        .where(PracticeSession.id == session_id, Student.user_id == current_user.id)
+    )
+    session_data = session_result.one_or_none()
+    if not session_data:
+        raise NotFoundException("练习记录不存在")
+
+    session, weakness, kp, student = session_data
+
+    # Get questions
+    questions_result = await db.execute(
+        select(PracticeQuestion)
+        .where(PracticeQuestion.session_id == session_id)
+        .order_by(PracticeQuestion.question_no)
+    )
+    questions = questions_result.scalars().all()
+
+    if not questions:
+        raise BadRequestException("没有可生成PDF的题目")
+
+    # Generate PDF
+    try:
+        subject_labels = {"math": "数学", "politics": "道法", "history": "历史"}
+        subject_label = subject_labels.get(kp.subject, kp.subject)
+
+        pdf_id = str(uuid.uuid4())
+        pdf_path = await pdf_service.generate(
+            student_name=student.name,
+            subject=subject_label,
+            weakness_name=kp.name,
+            questions=[
+                {
+                    "question_no": q.question_no,
+                    "difficulty": q.difficulty.value,
+                    "question_content": q.question_content,
+                    "question_type": q.question_type,
+                    "reference_answer": q.reference_answer if req.include_answers else "",
+                    "solution_detail": q.solution_detail if req.include_solutions else "",
+                }
+                for q in questions
+            ],
+            include_answers=req.include_answers,
+            include_solutions=req.include_solutions,
+            pdf_id=pdf_id,
+        )
+
+        logger.info(f"PDF generated: {pdf_path}")
+
+        return APIResponse(
+            data=PDFGenerateResponse(
+                pdf_id=pdf_id,
+                status="ready",
+                message="PDF 生成完成",
+            )
+        )
+
+    except Exception as e:
+        logger.error(f"PDF generation failed: {e}")
+        raise BadRequestException("PDF 生成失败，请稍后重试")
+
+
+@router.get("/{pdf_id}/download")
+async def download_pdf(
+    pdf_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """下载 PDF 文件。"""
+    pdf_path = os.path.join(settings.PDF_DIR, f"{pdf_id}.pdf")
+
+    if not os.path.exists(pdf_path):
+        raise NotFoundException("PDF 文件不存在")
+
+    # Try to extract filename from metadata
+    filename = f"ScoreForge_练习题_{pdf_id[:8]}.pdf"
+
+    return FileResponse(
+        path=pdf_path,
+        filename=filename,
+        media_type="application/pdf",
+    )

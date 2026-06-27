@@ -1,0 +1,59 @@
+/**
+ * ScoreForge 设计系统变量
+ * 基于技术设计说明书第五章 UI 设计系统规范
+ */
+
+/* ===== 色彩系统 ===== */
+$uni-color-primary: #2563EB;
+$uni-color-primary-light: #DBEAFE;
+$uni-color-success: #10B981;
+$uni-color-warning: #F59E0B;
+$uni-color-error: #EF4444;
+
+/* 文字颜色 */
+$uni-text-color: #1E293B;
+$uni-text-color-inverse: #FFFFFF;
+$uni-text-color-grey: #64748B;
+$uni-text-color-placeholder: #94A3B8;
+$uni-text-color-disable: #CBD5E1;
+
+/* 背景颜色 */
+$uni-bg-color: #FFFFFF;
+$uni-bg-color-grey: #F8FAFC;
+$uni-bg-color-hover: #F1F5F9;
+$uni-bg-color-mask: rgba(0, 0, 0, 0.4);
+
+/* 边框颜色 */
+$uni-border-color: #E2E8F0;
+
+/* ===== 字体尺寸 ===== */
+$uni-font-size-sm: 11px;
+$uni-font-size-base: 13px;
+$uni-font-size-lg: 15px;
+$uni-font-size-xl: 16px;
+$uni-font-size-xxl: 20px;
+$uni-font-size-xxxl: 24px;
+
+/* ===== 间距 ===== */
+$uni-spacing-row-sm: 4px;
+$uni-spacing-row-base: 8px;
+$uni-spacing-row-lg: 12px;
+$uni-spacing-row-xl: 16px;
+$uni-spacing-row-xxl: 24px;
+
+$uni-spacing-col-sm: 4px;
+$uni-spacing-col-base: 8px;
+$uni-spacing-col-lg: 12px;
+$uni-spacing-col-xl: 16px;
+$uni-spacing-col-xxl: 24px;
+$uni-spacing-col-xxxl: 32px;
+
+/* ===== 圆角 ===== */
+$uni-border-radius-sm: 6px;
+$uni-border-radius-base: 8px;
+$uni-border-radius-lg: 12px;
+$uni-border-radius-xl: 16px;
+
+/* ===== 阴影 ===== */
+$uni-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+$uni-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);

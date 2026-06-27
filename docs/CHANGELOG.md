@@ -51,3 +51,90 @@
 - WeasyPrint 对复杂数学公式的渲染效果需测试
 - 阿里云 OSS 还是腾讯云 COS 最终选定
 - 微信小程序审核相关资质准备
+
+---
+
+## V1.0-backend — 2026-06-27
+
+### 后端服务实现（P0 接口全部完成）
+
+**技术栈**：Python FastAPI + SQLAlchemy 2.0 + PostgreSQL + Redis
+
+#### 项目结构搭建
+- FastAPI 应用框架初始化
+- SQLAlchemy 2.0 ORM 模型定义（9 张表）
+- Alembic 数据库迁移配置
+- Pydantic v2 请求/响应验证
+- JWT 认证机制
+- Redis 缓存集成
+- 统一异常处理和 API 响应格式
+
+#### 已实现 P0 接口（17 个）
+
+**认证模块**
+| 接口 | 方法 | 说明 | 状态 |
+|------|------|------|------|
+| `/api/v1/auth/send-code` | POST | 发送短信验证码 | ✅ |
+| `/api/v1/auth/login` | POST | 手机号登录/注册 | ✅ |
+
+**学生档案模块**
+| 接口 | 方法 | 说明 | 状态 |
+|------|------|------|------|
+| `/api/v1/students` | GET | 获取孩子列表 | ✅ |
+| `/api/v1/students` | POST | 创建孩子档案 | ✅ |
+| `/api/v1/students/{id}` | PUT | 更新孩子档案 | ✅ |
+
+**试卷模块**
+| 接口 | 方法 | 说明 | 状态 |
+|------|------|------|------|
+| `/api/v1/exams/upload` | POST | 上传试卷照片 | ✅ |
+| `/api/v1/exams/{id}/recognition` | GET | 获取 AI 识别结果 | ✅ |
+| `/api/v1/exams/{id}/confirm` | POST | 家长确认/修正识别结果 | ✅ |
+| `/api/v1/exams/{id}/analysis` | GET | 获取薄弱点分析结果 | ✅ |
+
+**薄弱点模块**
+| 接口 | 方法 | 说明 | 状态 |
+|------|------|------|------|
+| `/api/v1/weaknesses` | GET | 获取薄弱点列表 | ✅ |
+| `/api/v1/weaknesses/{id}/master` | POST | 标记为已掌握 | ✅ |
+
+**练习模块**
+| 接口 | 方法 | 说明 | 状态 |
+|------|------|------|------|
+| `/api/v1/practice/generate` | POST | 生成练习题 | ✅ |
+| `/api/v1/practice/{session_id}/questions` | GET | 获取题目列表 | ✅ |
+| `/api/v1/practice/{session_id}/submit` | POST | 提交做题结果 | ✅ |
+| `/api/v1/practice/{session_id}/assessment` | GET | 获取掌握度评估 | ✅ |
+
+**PDF 模块**
+| 接口 | 方法 | 说明 | 状态 |
+|------|------|------|------|
+| `/api/v1/pdf/generate` | POST | 生成 PDF | ✅ |
+| `/api/v1/pdf/{id}/download` | GET | 下载 PDF | ✅ |
+
+#### 服务层实现
+- `OCRService` - PaddleOCR 试卷识别服务（含 mock 模式）
+- `AIService` - OpenAI API 集成（薄弱点分析、出题、掌握度评估）
+- `PDFService` - WeasyPrint PDF 生成服务（A4 排版、答案/解析分页）
+
+#### 开发模式说明
+- 验证码固定为 `888888`
+- AI 服务未配置 API Key 时返回 mock 数据
+- OCR 服务未安装 PaddleOCR 时返回 mock 数据
+- 所有接口支持 CORS 跨域
+
+#### 文件清单
+```
+backend/
+├── app/
+│   ├── api/v1/          # 6 个路由模块
+│   ├── core/            # 配置、数据库、安全、Redis
+│   ├── models/          # 9 个 ORM 模型
+│   ├── schemas/         # Pydantic 验证模型
+│   ├── services/        # AI、OCR、PDF 服务
+│   └── main.py          # FastAPI 入口
+├── alembic/             # 数据库迁移
+├── requirements.txt     # Python 依赖
+├── .env.example         # 环境变量示例
+└── README.md            # 后端文档
+```

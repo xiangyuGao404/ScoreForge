@@ -1,0 +1,1 @@
+"""ScoreForge backend application package."""
