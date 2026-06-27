@@ -38,9 +38,9 @@ def decode_access_token(token: str) -> Optional[dict]:
 # --- SMS Verification Code ---
 
 def generate_sms_code() -> str:
-    """Generate a 6-digit SMS verification code."""
-    import random
-    return f"{random.randint(100000, 999999)}"
+    """Generate a 6-digit SMS verification code using cryptographically secure random."""
+    import secrets
+    return f"{secrets.randbelow(900000) + 100000}"
 
 
 def get_sms_code_key(phone: str) -> str:

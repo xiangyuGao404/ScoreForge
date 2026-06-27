@@ -1,18 +1,15 @@
 """Weakness ORM model."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum as PyEnum
 
-from sqlalchemy import String, DateTime, ForeignKey, Enum, Text, Integer, Float
+from sqlalchemy import String, DateTime, ForeignKey, Enum, Text, Integer, Float, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-
-
-def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+from app.core.utils import utcnow
 
 
 class WeaknessStatus(str, PyEnum):
@@ -23,6 +20,10 @@ class WeaknessStatus(str, PyEnum):
 
 class Weakness(Base):
     __tablename__ = "weaknesses"
+    __table_args__ = (
+        # DB-1 fix: unique constraint to prevent duplicate weaknesses
+        UniqueConstraint("student_id", "knowledge_point_id", name="uq_weaknesses_student_kp"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id", ondelete="CASCADE"), index=True)

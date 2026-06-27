@@ -82,8 +82,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import { sendChatMessage, getChatHistory } from '../../utils/service'
+import { useStudentStore } from '../../store/student'
 
 interface Message {
   id: string
@@ -99,6 +100,7 @@ const roles = [
   { value: 'homeroom', label: '班主任', icon: '👩‍🏫' },
 ]
 
+const studentStore = useStudentStore()
 const currentRole = ref('math')
 const messages = ref<Message[]>([])
 const inputText = ref('')
@@ -106,11 +108,13 @@ const sending = ref(false)
 const scrollTarget = ref('')
 
 const currentRoleInfo = computed(() => roles.find(r => r.value === currentRole.value)!)
+const currentStudentId = computed(() => studentStore.currentStudent?.id || '')
 
 async function switchRole(role: string) {
   currentRole.value = role
   messages.value = []
-  const res = await getChatHistory('s-001', role)
+  if (!currentStudentId.value) return
+  const res = await getChatHistory(currentStudentId.value, role)
   if (res.code === 0) {
     messages.value = res.data
   }
@@ -147,7 +151,7 @@ async function sendMessage() {
   sending.value = true
   try {
     const res = await sendChatMessage({
-      student_id: 's-001',
+      student_id: currentStudentId.value,
       teacher_role: currentRole.value,
       content: text,
     })
@@ -168,7 +172,9 @@ async function sendMessage() {
 }
 
 // 初始化加载
-switchRole('math')
+onMounted(() => {
+  switchRole('math')
+})
 </script>
 
 <style lang="scss" scoped>

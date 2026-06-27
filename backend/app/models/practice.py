@@ -1,7 +1,7 @@
 """PracticeSession and PracticeQuestion ORM models."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum as PyEnum
 
 from sqlalchemy import String, DateTime, ForeignKey, Enum, Text, Integer, Float, Boolean
@@ -9,10 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-
-
-def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+from app.core.utils import utcnow
 
 
 class PracticeMode(str, PyEnum):
@@ -24,6 +21,12 @@ class Difficulty(str, PyEnum):
     BASIC = "basic"
     MEDIUM = "medium"
     ADVANCED = "advanced"
+
+
+class QuestionType(str, PyEnum):
+    CHOICE = "choice"
+    FILL_BLANK = "fill_blank"
+    SOLVE = "solve"
 
 
 class MasteryStatus(str, PyEnum):
@@ -59,7 +62,8 @@ class PracticeQuestion(Base):
     reference_answer: Mapped[str] = mapped_column(Text)
     solution_detail: Mapped[str] = mapped_column(Text)
     difficulty: Mapped[Difficulty] = mapped_column(Enum(Difficulty))
-    question_type: Mapped[str] = mapped_column(String(20))  # choice, fill_blank, solve
+    # DB-7 fix: use enum instead of free string
+    question_type: Mapped[QuestionType] = mapped_column(Enum(QuestionType), default=QuestionType.SOLVE)
     student_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     parent_marked: Mapped[bool] = mapped_column(Boolean, default=False)

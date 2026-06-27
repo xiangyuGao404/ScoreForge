@@ -3,7 +3,7 @@
  * 后端就绪前使用 Mock，就绪后切换为真实请求
  */
 
-import { request, USE_MOCK } from './api'
+import { request, uploadFile, USE_MOCK } from './api'
 import * as mock from './mock'
 
 // ===== 认证 =====
@@ -57,11 +57,16 @@ export async function uploadExam(params: {
       },
     }
   }
-  // 真实上传：逐张上传图片
+  // 真实上传：逐张上传图片获取 URL
   const uploadedUrls: string[] = []
   for (const img of params.images) {
-    const res = await mock.delay(200).then(() => ({ url: img }))
-    uploadedUrls.push(res.url)
+    const res = await uploadFile({
+      url: '/exams/upload-image',
+      filePath: img,
+      name: 'image',
+      formData: { student_id: params.student_id },
+    })
+    if (res?.data?.url) uploadedUrls.push(res.data.url)
   }
   return request({
     url: '/exams/upload',

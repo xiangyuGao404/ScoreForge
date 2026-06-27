@@ -80,8 +80,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getAnalysis, generatePractice } from '../../utils/service'
+import { useStudentStore } from '../../store/student'
 
 interface Weakness {
   weakness_id: string
@@ -91,10 +92,12 @@ interface Weakness {
   status: string
 }
 
+const studentStore = useStudentStore()
 const examId = ref('')
 const loading = ref(true)
 const analysis = ref<any>({})
 const weaknesses = ref<Weakness[]>([])
+const currentStudentId = computed(() => studentStore.currentStudent?.id || 's-001')
 
 const subjectLabel: Record<string, string> = {
   math: '数学',
@@ -149,7 +152,7 @@ async function startPractice(w: Weakness) {
   uni.showLoading({ title: '正在生成题目...' })
   try {
     const res = await generatePractice({
-      student_id: 's-001',
+      student_id: currentStudentId.value,
       weakness_id: w.weakness_id,
       mode: 'online',
       question_count: 5,

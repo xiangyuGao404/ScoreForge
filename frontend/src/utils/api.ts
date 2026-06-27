@@ -4,7 +4,8 @@
  */
 
 const BASE_URL = '/api/v1'
-const USE_MOCK = true // 后端就绪后改为 false
+// 通过环境变量 VITE_USE_MOCK 控制，开发时默认 true，构建时可指定 false
+const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
 
 interface ApiResponse<T = any> {
   code: number

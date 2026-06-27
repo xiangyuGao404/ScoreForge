@@ -1,18 +1,15 @@
 """Exam and ExamQuestion ORM models."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum as PyEnum
 
-from sqlalchemy import String, DateTime, ForeignKey, Enum, Text, Integer, Float, Boolean
+from sqlalchemy import String, DateTime, ForeignKey, Enum, Text, Integer, Float, Boolean, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-
-
-def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+from app.core.utils import utcnow
 
 
 class ExamStatus(str, PyEnum):
@@ -26,6 +23,9 @@ class ExamStatus(str, PyEnum):
 
 class Exam(Base):
     __tablename__ = "exams"
+    __table_args__ = (
+        Index("ix_exams_status", "status"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id", ondelete="CASCADE"), index=True)
@@ -37,6 +37,7 @@ class Exam(Base):
     status: Mapped[ExamStatus] = mapped_column(Enum(ExamStatus), default=ExamStatus.UPLOADING)
     ai_raw_result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     # Relationships
     student: Mapped["Student"] = relationship(back_populates="exams")
@@ -56,7 +57,10 @@ class ExamQuestion(Base):
     score_got: Mapped[float] = mapped_column(Float, default=0)
     score_total: Mapped[float] = mapped_column(Float, default=0)
     confidence: Mapped[float] = mapped_column(Float, default=0)
-    knowledge_point_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("knowledge_points.id"), nullable=True)
+    # DB-2 fix: SET NULL on delete for knowledge_point FK
+    knowledge_point_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("knowledge_points.id", ondelete="SET NULL"), nullable=True
+    )
     parent_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

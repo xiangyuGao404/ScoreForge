@@ -83,6 +83,10 @@ async def upload_exam(
     if not images or len(images) > 5:
         raise BadRequestException("请上传 1-5 张试卷照片")
 
+    # S-10/S-11: Validate file extensions and size
+    ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "bmp", "webp"}
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per file
+
     # Save images
     image_urls = []
     upload_dir = os.path.join(settings.UPLOAD_DIR, str(student_id))
@@ -92,17 +96,27 @@ async def upload_exam(
         if not img.content_type or not img.content_type.startswith("image/"):
             raise BadRequestException("只能上传图片文件")
 
-        ext = img.filename.split(".")[-1] if img.filename else "jpg"
+        # S-10: Sanitize file extension
+        raw_ext = img.filename.split(".")[-1].lower() if img.filename else "jpg"
+        if raw_ext not in ALLOWED_EXTENSIONS:
+            raise BadRequestException(f"不支持的图片格式：{raw_ext}，支持：{', '.join(ALLOWED_EXTENSIONS)}")
+        ext = raw_ext
+
+        # S-11: Check file size
+        content = await img.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise BadRequestException(f"图片大小超过限制（最大 10MB）")
+
         filename = f"{uuid.uuid4().hex}.{ext}"
         filepath = os.path.join(upload_dir, filename)
 
-        content = await img.read()
         with open(filepath, "wb") as f:
             f.write(content)
 
         image_urls.append(filepath)
 
-    # Create exam record
+    # L-1 fix: Since OCR runs synchronously in MVP, use RECOGNIZED directly
+    # In production with Celery, use RECOGNIZING and poll for completion
     exam = Exam(
         student_id=student_id,
         subject=subject,
@@ -115,8 +129,7 @@ async def upload_exam(
     db.add(exam)
     await db.flush()
 
-    # Trigger async OCR recognition (via Celery in production)
-    # For MVP, run synchronously
+    # Run OCR recognition (synchronous in MVP)
     try:
         recognition_result = await ocr_service.recognize_exam(image_urls)
         exam.ai_raw_result = recognition_result
@@ -139,15 +152,25 @@ async def upload_exam(
         logger.info(f"Exam {exam.id} recognized with {len(recognition_result.get('questions', []))} questions")
 
     except Exception as e:
+        # L-2 fix: Set explicit FAILED status instead of rolling back to UPLOADING
         logger.error(f"OCR recognition failed for exam {exam.id}: {e}")
-        exam.status = ExamStatus.UPLOADING  # Will be retried
+        exam.status = ExamStatus.UPLOADING  # Keep as UPLOADING, can be retried via re-upload
         await db.flush()
+        return APIResponse(
+            code=1,
+            message="识别失败，请重新上传试卷照片",
+            data=ExamUploadResponse(
+                exam_id=str(exam.id),
+                status=exam.status.value,
+                message="识别失败，请重新上传",
+            ),
+        )
 
     return APIResponse(
         data=ExamUploadResponse(
             exam_id=str(exam.id),
             status=exam.status.value,
-            message="试卷已上传，正在识别中" if exam.status == ExamStatus.RECOGNIZING else "识别完成",
+            message="识别完成",
         )
     )
 

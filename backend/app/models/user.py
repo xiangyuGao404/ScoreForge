@@ -1,14 +1,15 @@
 """User and Student ORM models."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum as PyEnum
 
-from sqlalchemy import String, DateTime, ForeignKey, Enum, Text
+from sqlalchemy import String, DateTime, ForeignKey, Enum, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.core.utils import utcnow
 
 
 class UserLevel(str, PyEnum):
@@ -20,10 +21,6 @@ class Grade(str, PyEnum):
     GRADE_7 = "初一"
     GRADE_8 = "初二"
     GRADE_9 = "初三"
-
-
-def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 class User(Base):

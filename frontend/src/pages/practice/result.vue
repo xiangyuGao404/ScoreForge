@@ -73,6 +73,7 @@ import { getAssessment, masterWeakness } from '../../utils/service'
 
 const sessionId = ref('')
 const weaknessName = ref('')
+const weaknessId = ref('')
 const loading = ref(true)
 const assessment = ref<any>({})
 const history = ref<any[]>([])
@@ -91,6 +92,7 @@ onMounted(async () => {
   const currentPage = pages[pages.length - 1] as any
   sessionId.value = currentPage?.options?.sessionId || 'ps-001'
   weaknessName.value = decodeURIComponent(currentPage?.options?.weaknessName || '')
+  weaknessId.value = currentPage?.options?.weaknessId || ''
 
   const res = await getAssessment(sessionId.value)
   if (res.code === 0) {
@@ -104,10 +106,22 @@ function goHome() {
   uni.switchTab({ url: '/pages/home/index' })
 }
 
-function continuePractice() {
+async function continuePractice() {
   if (assessment.value.recommendation === 'mastered') {
-    uni.showToast({ title: '已标记为掌握', icon: 'success' })
-    setTimeout(() => goHome(), 1000)
+    if (!weaknessId.value) {
+      uni.showToast({ title: '已标记为掌握', icon: 'success' })
+      setTimeout(() => goHome(), 1000)
+      return
+    }
+    try {
+      const res = await masterWeakness(weaknessId.value)
+      if (res.code === 0) {
+        uni.showToast({ title: '已标记为掌握', icon: 'success' })
+        setTimeout(() => goHome(), 1000)
+      }
+    } catch (e: any) {
+      uni.showToast({ title: e.message || '标记失败', icon: 'none' })
+    }
   } else {
     uni.navigateBack()
   }

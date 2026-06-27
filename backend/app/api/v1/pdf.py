@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pdf", tags=["PDF"])
 
 
+def _pdf_owner_key(pdf_id: str) -> str:
+    """Redis key for PDF ownership tracking."""
+    return f"pdf:owner:{pdf_id}"
+
+
 @router.post("/generate", response_model=APIResponse[PDFGenerateResponse])
 async def generate_pdf(
     req: PDFGenerateRequest,
@@ -74,7 +79,7 @@ async def generate_pdf(
                     "question_no": q.question_no,
                     "difficulty": q.difficulty.value,
                     "question_content": q.question_content,
-                    "question_type": q.question_type,
+                    "question_type": q.question_type.value if hasattr(q.question_type, 'value') else q.question_type,
                     "reference_answer": q.reference_answer if req.include_answers else "",
                     "solution_detail": q.solution_detail if req.include_solutions else "",
                 }
@@ -84,6 +89,29 @@ async def generate_pdf(
             include_solutions=req.include_solutions,
             pdf_id=pdf_id,
         )
+
+        # S-4 fix: Store PDF ownership in Redis
+        try:
+            from app.core.redis import redis_client
+            await redis_client.setex(
+                _pdf_owner_key(pdf_id),
+                86400 * 7,  # 7 days expiry
+                str(current_user.id),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to store PDF ownership: {e}")
+
+        # Store filename for download
+        filename = f"ScoreForge_{student.name}_{kp.name}_{pdf_id[:8]}.pdf"
+        try:
+            from app.core.redis import redis_client
+            await redis_client.setex(
+                f"pdf:name:{pdf_id}",
+                86400 * 7,
+                filename,
+            )
+        except Exception:
+            pass
 
         logger.info(f"PDF generated: {pdf_path}")
 
@@ -106,13 +134,33 @@ async def download_pdf(
     current_user: User = Depends(get_current_user),
 ):
     """下载 PDF 文件。"""
+    # S-4 fix: Verify PDF ownership
+    try:
+        from app.core.redis import redis_client
+        owner_id = await redis_client.get(_pdf_owner_key(pdf_id))
+        if owner_id and owner_id != str(current_user.id):
+            raise ForbiddenException("无权下载此 PDF")
+    except ForbiddenException:
+        raise
+    except Exception:
+        # Redis unavailable, skip ownership check in dev mode
+        if not settings.DEBUG:
+            raise ForbiddenException("无法验证 PDF 所有权")
+
     pdf_path = os.path.join(settings.PDF_DIR, f"{pdf_id}.pdf")
 
     if not os.path.exists(pdf_path):
         raise NotFoundException("PDF 文件不存在")
 
-    # Try to extract filename from metadata
+    # Get filename from Redis or use default
     filename = f"ScoreForge_练习题_{pdf_id[:8]}.pdf"
+    try:
+        from app.core.redis import redis_client
+        stored_name = await redis_client.get(f"pdf:name:{pdf_id}")
+        if stored_name:
+            filename = stored_name
+    except Exception:
+        pass
 
     return FileResponse(
         path=pdf_path,

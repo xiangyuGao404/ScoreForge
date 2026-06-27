@@ -107,8 +107,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useStudentStore } from '../../store/student'
+import { getWeaknesses } from '../../utils/service'
 
 const studentStore = useStudentStore()
 const showChildPicker = ref(false)
@@ -122,27 +123,44 @@ const statusLabel: Record<string, string> = {
   mastered: '已掌握',
 }
 
-// Mock 数据
-const stats = ref({ totalExams: 3, practicing: 2, mastered: 1 })
+// 数据
+const stats = ref({ totalExams: 0, practicing: 0, mastered: 0 })
+const recentExam = ref<any>(null)
+const pendingWeaknesses = ref<any[]>([])
 
-const recentExam = ref({
-  id: 'exam-001',
-  subject: '数学 · 月考',
-  date: '2026-06-27',
-  score: 73,
-  total: 120,
-  weaknessCount: 3,
+async function loadHomeData() {
+  try {
+    const res = await getWeaknesses()
+    if (res.code === 0) {
+      const list = res.data
+      stats.value = {
+        totalExams: 0,
+        practicing: list.filter((w: any) => w.status === 'practicing').length,
+        mastered: list.filter((w: any) => w.status === 'mastered').length,
+      }
+      pendingWeaknesses.value = list
+        .filter((w: any) => w.status !== 'mastered')
+        .map((w: any) => ({
+          id: w.weakness_id,
+          name: w.knowledge_point,
+          stars: w.star_rating,
+          status: w.status,
+        }))
+    }
+  } catch (e) {
+    console.error('加载首页数据失败', e)
+  }
+}
+
+onMounted(() => {
+  loadHomeData()
 })
 
-const pendingWeaknesses = ref([
-  { id: 'w-001', name: '函数基础概念', stars: 5, status: 'practicing' },
-  { id: 'w-002', name: '一元二次方程计算', stars: 4, status: 'not_started' },
-  { id: 'w-003', name: '几何证明', stars: 3, status: 'not_started' },
-])
-
+// 切换孩子时刷新数据
 function switchChild(id: string) {
   studentStore.switchStudent(id)
   showChildPicker.value = false
+  loadHomeData()
 }
 
 function goUpload() {

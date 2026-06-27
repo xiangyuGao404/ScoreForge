@@ -40,11 +40,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# S-3 fix: CORS configuration
+# In production, ALLOWED_ORIGINS should be specific domains, not "*"
+# allow_credentials cannot be used with wildcard origins
+cors_origins = settings.ALLOWED_ORIGINS.split(",")
+allow_credentials = cors_origins != ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS.split(","),
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

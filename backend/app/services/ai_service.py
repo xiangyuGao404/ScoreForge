@@ -15,6 +15,42 @@ from app.models.api_usage import APIUsageLog
 logger = logging.getLogger(__name__)
 
 
+def _extract_list_from_response(result: any, keys: list[str] = None) -> list:
+    """Extract a list from AI response, handling various JSON formats.
+
+    L-8 fix: Robust parsing that handles:
+    - Direct list: [...]
+    - Wrapped list: {"weaknesses": [...]} or {"questions": [...]} or {"data": [...]}
+    - Nested: {"data": {"weaknesses": [...]}}
+    """
+    if keys is None:
+        keys = ["weaknesses", "questions", "data", "items", "results"]
+
+    if isinstance(result, list):
+        return result
+
+    if isinstance(result, dict):
+        # Try each key
+        for key in keys:
+            val = result.get(key)
+            if isinstance(val, list):
+                return val
+            # Handle nested dict
+            if isinstance(val, dict):
+                for subkey in keys:
+                    subval = val.get(subkey)
+                    if isinstance(subval, list):
+                        return subval
+
+        # Try to find any list value in the dict
+        for val in result.values():
+            if isinstance(val, list):
+                return val
+
+    logger.warning(f"Could not extract list from AI response: {type(result)}")
+    return []
+
+
 class AIService:
     """Service for AI-powered analysis and generation."""
 
@@ -160,9 +196,8 @@ class AIService:
             content = response.choices[0].message.content
             result = json.loads(content)
 
-            # Handle both {"weaknesses": [...]} and [...] formats
-            if isinstance(result, dict):
-                result = result.get("weaknesses", result.get("data", []))
+            # L-8 fix: robust list extraction
+            result = _extract_list_from_response(result, ["weaknesses", "data", "items"])
 
             # Log usage
             await self._log_usage(
@@ -257,8 +292,8 @@ class AIService:
             content = response.choices[0].message.content
             result = json.loads(content)
 
-            if isinstance(result, dict):
-                result = result.get("questions", result.get("data", []))
+            # L-8 fix: robust list extraction
+            result = _extract_list_from_response(result, ["questions", "data", "items"])
 
             await self._log_usage(
                 db=db,

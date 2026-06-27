@@ -109,6 +109,7 @@ interface Question {
 
 const sessionId = ref('')
 const weaknessName = ref('')
+const weaknessId = ref('')
 const loading = ref(true)
 const questions = ref<Question[]>([])
 const currentIndex = ref(0)
@@ -125,6 +126,7 @@ onMounted(async () => {
   const currentPage = pages[pages.length - 1] as any
   sessionId.value = currentPage?.options?.sessionId || 'ps-001'
   weaknessName.value = decodeURIComponent(currentPage?.options?.weaknessName || '函数基础概念')
+  weaknessId.value = currentPage?.options?.weaknessId || ''
 
   const res = await getPracticeQuestions(sessionId.value)
   if (res.code === 0) {
@@ -136,15 +138,22 @@ onMounted(async () => {
 })
 
 function selectAnswer(opt: string) {
-  answers.value[currentIndex.value = currentIndex.value] = opt
   answers.value[currentIndex.value] = opt
 }
 
 function submitCurrent() {
   if (!answers.value[currentIndex.value]) return
-  // 简单判断对错
-  const correct = answers.value[currentIndex.value].trim().toLowerCase() ===
-    currentQ.value.reference_answer.trim().toLowerCase()
+  // 判断对错：选择题精确匹配，其他题型宽松匹配（包含关键词即算对）
+  const userAnswer = answers.value[currentIndex.value].trim().toLowerCase()
+  const refAnswer = currentQ.value.reference_answer.trim().toLowerCase()
+  let correct = false
+  if (currentQ.value.question_type === 'choice') {
+    correct = userAnswer === refAnswer
+  } else {
+    // 填空/解答题：用户答案包含参考答案中的关键数值/关键词即视为正确
+    const keywords = refAnswer.split(/[；;，,\s]+/).filter((k: string) => k.length > 0)
+    correct = keywords.some((kw: string) => userAnswer.includes(kw))
+  }
   results.value[currentIndex.value] = correct
   showAnswer.value = true
 }
@@ -177,7 +186,7 @@ async function finishPractice() {
     await submitPracticeResult(sessionId.value, submitResults)
     uni.hideLoading()
     uni.redirectTo({
-      url: `/pages/practice/result?sessionId=${sessionId.value}&weaknessName=${encodeURIComponent(weaknessName.value)}`,
+      url: `/pages/practice/result?sessionId=${sessionId.value}&weaknessName=${encodeURIComponent(weaknessName.value)}&weaknessId=${weaknessId.value}`,
     })
   } catch (e: any) {
     uni.hideLoading()

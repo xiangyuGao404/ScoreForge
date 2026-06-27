@@ -2,6 +2,7 @@
 
 import uuid
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -11,8 +12,8 @@ from app.core.database import get_db
 from app.core.exceptions import NotFoundException, ForbiddenException, BadRequestException
 from app.models.user import User, Student
 from app.models.knowledge import KnowledgePoint
-from app.models.weakness import Weakness
-from app.models.practice import PracticeSession, PracticeQuestion, PracticeMode, Difficulty, MasteryStatus
+from app.models.weakness import Weakness, WeaknessStatus
+from app.models.practice import PracticeSession, PracticeQuestion, PracticeMode, Difficulty, MasteryStatus, QuestionType
 from app.models.exam import Exam
 from app.schemas.common import APIResponse
 from app.schemas.practice import (
@@ -96,6 +97,7 @@ async def generate_practice(
 
         # Create practice questions
         difficulty_map = {"basic": Difficulty.BASIC, "medium": Difficulty.MEDIUM, "advanced": Difficulty.ADVANCED}
+        question_type_map = {"choice": QuestionType.CHOICE, "fill_blank": QuestionType.FILL_BLANK, "solve": QuestionType.SOLVE}
 
         for q_data in questions_data:
             pq = PracticeQuestion(
@@ -105,7 +107,7 @@ async def generate_practice(
                 reference_answer=q_data["reference_answer"],
                 solution_detail=q_data["solution_detail"],
                 difficulty=difficulty_map.get(q_data.get("difficulty", "basic"), Difficulty.BASIC),
-                question_type=q_data.get("question_type", "solve"),
+                question_type=question_type_map.get(q_data.get("question_type", "solve"), QuestionType.SOLVE),
             )
             db.add(pq)
 
@@ -116,16 +118,17 @@ async def generate_practice(
         logger.error(f"Question generation failed for session {session.id}: {e}")
         raise BadRequestException("题目生成失败，请稍后重试")
 
-    # Update weakness status
-    if weakness.status == "not_started":
-        weakness.status = "practicing"
+    # L-3 fix: use enum member instead of string
+    if weakness.status == WeaknessStatus.NOT_STARTED:
+        weakness.status = WeaknessStatus.PRACTICING
         await db.flush()
 
+    # L-4 fix: remove dead code, status is always "ready" after generation
     return APIResponse(
         data=PracticeGenerateResponse(
             session_id=str(session.id),
             mode=mode.value,
-            status="generating" if False else "ready",
+            status="ready",
             message="题目生成完成",
         )
     )
@@ -292,8 +295,9 @@ async def get_assessment(
         weakness.mastery_score = assessment.get("mastery_score", 0)
         weakness.recommended_days = assessment.get("suggested_days", 2)
 
+        # L-5 fix: use enum member instead of string
         if assessment.get("recommendation") == "mastered":
-            weakness.status = "mastered"
+            weakness.status = WeaknessStatus.MASTERED
             weakness.mastered_at = datetime.now(timezone.utc)
 
         session.ai_assessment = assessment
