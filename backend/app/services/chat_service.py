@@ -3,7 +3,7 @@
 import logging
 from typing import Optional
 
-from app.services.ai_service import _get_ai_client, _parse_json_from_text
+from app.services.ai_service import get_general_client, _parse_json_from_text
 
 logger = logging.getLogger(__name__)
 
@@ -103,40 +103,23 @@ async def get_teacher_response(
             messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": user_message})
 
-    client, provider = _get_ai_client()
+    client, model, provider = get_general_client()
     if not client:
         # Mock response for development
         return f"根据{student_name}最近的学习数据，我建议可以从基础题型开始巩固，每天坚持练习2-3道题，一周后会有明显进步。"
 
     try:
-        # Use the client directly for chat
-        if provider in ("xiaomi", "openai"):
-            from openai import AsyncOpenAI
-            from app.core.config import settings
-
-            if provider == "xiaomi":
-                api_key = settings.XIAOMI_API_KEY
-                base_url = settings.XIAOMI_API_BASE
-                model = settings.XIAOMI_MODEL
-            else:
-                api_key = settings.OPENAI_API_KEY
-                base_url = settings.OPENAI_API_BASE
-                model = settings.DEFAULT_AI_MODEL
-
-            oai_client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=60.0)
-            response = await oai_client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    *messages,
-                ],
-                max_tokens=500,
-                temperature=0.7,
-            )
-            return response.choices[0].message.content
-        else:
-            return f"根据{student_name}最近的学习数据，我建议可以从基础题型开始巩固。"
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                *messages,
+            ],
+            max_tokens=500,
+            temperature=0.7,
+        )
+        return response.choices[0].message.content
 
     except Exception as e:
-        logger.error(f"Chat AI call failed: {e}")
+        logger.error(f"Chat AI call failed ({provider}/{model}): {e}")
         return f"抱歉，{role_info['name']}暂时无法回答，请稍后再试。"
