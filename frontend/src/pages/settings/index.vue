@@ -294,7 +294,8 @@ async function handleTest() {
     if (res.code === 0) {
       testResult.value = res.data
     } else {
-      testResult.value = { success: false, error: res.message }
+      // 后端 code!=0 时，data 里仍有 {success:false, error:"..."} 结构
+      testResult.value = res.data || { success: false, error: res.message }
     }
   } catch (e: any) {
     testResult.value = { success: false, error: e.message || '测试失败' }

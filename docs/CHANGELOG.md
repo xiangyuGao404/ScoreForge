@@ -654,3 +654,39 @@ cd frontend && VITE_USE_MOCK=false npm run dev:h5
 | `getApiConfig()` | `GET /settings/api-config` | 获取当前用户 API 配置 |
 | `saveApiConfig(config)` | `PUT /settings/api-config` | 保存 API 配置 |
 | `testApiConfig(params)` | `POST /settings/test-api` | 测试 API Key + 模型是否可用 |
+
+---
+
+## V1.0-math-upload-fix — 2026-06-27
+
+### 数学符号渲染 + 多图上传修复（前端 3/3 完成）
+
+依据 [数学渲染与多图上传修复清单](数学渲染与多图上传修复清单.md) 中的前端任务逐项实现：
+
+| # | 任务 | 优先级 | 状态 | 说明 |
+|---|------|--------|------|------|
+| F-1 | 新建 `utils/math.ts` LaTeX→Unicode 转换函数 | P0 | ✅ | 支持上标/下标/分数/根号/希腊字母/比较符号等 30+ 种 LaTeX 命令转换 |
+| F-2 | 题目显示时调用 `latexToText()` | P0 | ✅ | `practice/index.vue`（题目+答案+解析）、`exam/confirm.vue`（题目）均已接入 |
+| F-3 | 修改 `uploadExam` 支持多图上传 | P0 | ✅ | 改为两步流程：①逐张上传到 `/exams/upload-image` 获取 URL ②调用 `/exams/upload` 提交 URL 列表 |
+
+#### 新增文件
+
+- `frontend/src/utils/math.ts` — `latexToText(text)` 函数，处理 `$...$` 格式中的 LaTeX 命令，转换为 Unicode 数学符号
+
+#### 修改文件
+
+| 文件 | 改动 |
+|------|------|
+| `frontend/src/utils/service.ts` | `uploadExam` 重写：新增 `uploadSingleImage` 辅助函数，逐张上传 → 收集 URL → 提交试卷 |
+| `frontend/src/pages/practice/index.vue` | 引入 `latexToText`，题目/答案/解析显示时转换 |
+| `frontend/src/pages/exam/confirm.vue` | 引入 `latexToText`，题目显示时转换 |
+
+#### 转换示例
+
+| LaTeX 输入 | Unicode 输出 |
+|------------|-------------|
+| `$x \geq 6$` | `x ≥ 6` |
+| `$x^2 + 1$` | `x² + 1` |
+| `$\frac{1}{2}$` | `1/2` |
+| `$\sqrt{x}$` | `√(x)` |
+| `$x_1, x_2$` | `x₁, x₂` |

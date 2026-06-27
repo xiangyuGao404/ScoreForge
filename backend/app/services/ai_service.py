@@ -357,7 +357,23 @@ class AIService:
 - 只输出JSON对象
 - 每道题的 solution_detail 必须详细到学生能看懂
 - 选择题的选项必须用 A/B/C/D 标注
-- 不要生成与历史题目重复的内容"""
+- 不要生成与历史题目重复的内容
+
+## 数学公式格式要求（重要！）
+- 禁止使用 LaTeX 格式（如 $x^2$、\\frac{{a}}{{b}}、\\sqrt{{x}}）
+- 使用纯文本 + Unicode 数学符号表示：
+  - 平方：x²（上标 Unicode）
+  - 下标：x₁
+  - 根号：√x
+  - 大于等于：≥
+  - 小于等于：≤
+  - 不等于：≠
+  - 分数：用文字描述 "二分之一" 或 "1/2"
+  - 乘号：×（不用 *）
+  - 除号：÷（不用 /）
+  - 圆周率：π
+  - 角度：∠ABC
+- 如果必须表示复杂公式，用文字描述而非符号"""
 
         historical_text = "\n".join([f"- {q}" for q in historical_questions[:20]]) if historical_questions else "无"
 

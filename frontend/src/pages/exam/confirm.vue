@@ -63,7 +63,7 @@
             </view>
           </view>
 
-          <text class="q-content">{{ q.question_content }}</text>
+          <text class="q-content">{{ latexToText(q.question_content) }}</text>
 
           <view class="q-score-row">
             <text class="score-label">得分：</text>
@@ -108,6 +108,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { getRecognition, confirmRecognition } from '../../utils/service'
+import { latexToText } from '../../utils/math'
 
 interface Question {
   question_no: number

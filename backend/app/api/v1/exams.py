@@ -175,6 +175,154 @@ async def upload_exam(
     )
 
 
+@router.post("/upload-image")
+async def upload_single_image(
+    image: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    上传单张图片，返回图片 URL。
+    前端可循环调用此接口上传所有图片，再调用 /exams/upload 传 URL 列表。
+    """
+    ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "bmp", "webp"}
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise BadRequestException("只能上传图片文件")
+
+    # Validate extension
+    raw_ext = image.filename.split(".")[-1].lower() if image.filename else "jpg"
+    if raw_ext not in ALLOWED_EXTENSIONS:
+        raise BadRequestException(f"不支持的图片格式：{raw_ext}")
+    ext = raw_ext
+
+    # Check file size
+    content = await image.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise BadRequestException("图片大小超过限制（最大 10MB）")
+
+    # Save to user's upload directory
+    upload_dir = os.path.join(settings.UPLOAD_DIR, str(current_user.id))
+    os.makedirs(upload_dir, exist_ok=True)
+
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(upload_dir, filename)
+
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    logger.info(f"Image uploaded: {filepath}")
+
+    return APIResponse(
+        data={
+            "url": filepath,
+            "filename": filename,
+        }
+    )
+
+
+@router.post("/upload-by-urls", response_model=APIResponse[ExamUploadResponse])
+async def upload_exam_by_urls(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    通过 URL 列表上传试卷（前端先用 /upload-image 上传图片拿到 URL）。
+    Body: {student_id, subject, exam_name?, total_score, actual_score?, image_urls: [...]}
+    """
+    student_id = body.get("student_id")
+    subject = body.get("subject")
+    exam_name = body.get("exam_name")
+    total_score = body.get("total_score")
+    actual_score = body.get("actual_score")
+    image_urls = body.get("image_urls", [])
+
+    if not student_id:
+        raise BadRequestException("student_id 不能为空")
+    if not subject:
+        raise BadRequestException("subject 不能为空")
+    if not total_score:
+        raise BadRequestException("total_score 不能为空")
+    if not image_urls:
+        raise BadRequestException("image_urls 不能为空")
+
+    student_id = uuid.UUID(student_id)
+
+    # Validate student ownership
+    await _verify_student_ownership(db, current_user, student_id)
+
+    # Validate subject
+    valid_subjects = ["math", "politics", "history"]
+    if subject not in valid_subjects:
+        raise BadRequestException(f"不支持的学科：{subject}")
+
+    # Validate image count
+    if len(image_urls) > 5:
+        raise BadRequestException("最多上传 5 张图片")
+
+    # Verify images exist
+    for url in image_urls:
+        if not os.path.exists(url):
+            raise BadRequestException(f"图片不存在：{url}")
+
+    # Create exam record
+    exam = Exam(
+        student_id=student_id,
+        subject=subject,
+        exam_name=exam_name,
+        total_score=total_score,
+        actual_score=actual_score,
+        image_urls=image_urls,
+        status=ExamStatus.RECOGNIZING,
+    )
+    db.add(exam)
+    await db.flush()
+
+    # Run OCR recognition
+    try:
+        recognition_result = await ocr_service.recognize_exam(image_urls, subject=subject)
+        exam.ai_raw_result = recognition_result
+
+        for q_data in recognition_result.get("questions", []):
+            question = ExamQuestion(
+                exam_id=exam.id,
+                question_no=q_data["question_no"],
+                question_content=q_data.get("question_content", ""),
+                is_correct=q_data.get("is_correct"),
+                score_got=q_data.get("score_got", 0),
+                score_total=q_data.get("score_total", 0),
+                confidence=q_data.get("confidence", 0),
+            )
+            db.add(question)
+
+        exam.status = ExamStatus.RECOGNIZED
+        await db.flush()
+        logger.info(f"Exam {exam.id} recognized with {len(recognition_result.get('questions', []))} questions")
+
+    except Exception as e:
+        logger.error(f"OCR recognition failed for exam {exam.id}: {e}")
+        exam.status = ExamStatus.UPLOADING
+        await db.flush()
+        return APIResponse(
+            code=1,
+            message="识别失败，请重新上传试卷照片",
+            data=ExamUploadResponse(
+                exam_id=str(exam.id),
+                status=exam.status.value,
+                message="识别失败，请重新上传",
+            ),
+        )
+
+    return APIResponse(
+        data=ExamUploadResponse(
+            exam_id=str(exam.id),
+            status=exam.status.value,
+            message="识别完成",
+        )
+    )
+
+
 @router.get("/{exam_id}/recognition", response_model=APIResponse[ExamRecognitionResponse])
 async def get_recognition(
     exam_id: uuid.UUID,

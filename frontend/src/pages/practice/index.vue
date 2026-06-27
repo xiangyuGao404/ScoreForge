@@ -29,7 +29,7 @@
           </view>
         </view>
 
-        <text class="q-content">{{ currentQ.question_content }}</text>
+        <text class="q-content">{{ latexToText(currentQ.question_content) }}</text>
 
         <!-- 答题区域 -->
         <view class="answer-area">
@@ -64,10 +64,10 @@
           <text class="answer-title">📖 参考答案</text>
         </view>
         <view class="answer-card">
-          <text class="ref-answer">{{ currentQ.reference_answer }}</text>
+          <text class="ref-answer">{{ latexToText(currentQ.reference_answer) }}</text>
           <view class="divider"></view>
           <text class="solution-title">解析：</text>
-          <text class="solution-detail">{{ currentQ.solution_detail }}</text>
+          <text class="solution-detail">{{ latexToText(currentQ.solution_detail) }}</text>
         </view>
       </view>
 
@@ -97,6 +97,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { getPracticeQuestions, submitPracticeResult } from '../../utils/service'
+import { latexToText } from '../../utils/math'
 
 interface Question {
   question_no: number

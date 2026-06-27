@@ -93,6 +93,35 @@ export async function updateStudent(
 }
 
 // ===== 试卷上传 =====
+
+// 逐张上传图片到 /exams/upload-image，返回 URL 列表
+function uploadSingleImage(filePath: string, token: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: '/api/v1/exams/upload-image',
+      filePath,
+      name: 'image',
+      header: { Authorization: `Bearer ${token}` },
+      success: (res: any) => {
+        if (res.statusCode === 200) {
+          const data = JSON.parse(res.data)
+          resolve(data.data?.url || data.data?.filepath || '')
+        } else if (res.statusCode === 401) {
+          reject(new Error('未登录或登录已过期'))
+        } else {
+          try {
+            const err = JSON.parse(res.data)
+            reject(new Error(err.message || '图片上传失败'))
+          } catch {
+            reject(new Error('图片上传失败'))
+          }
+        }
+      },
+      fail: (err: any) => reject(new Error(err.errMsg || '图片上传失败')),
+    })
+  })
+}
+
 export async function uploadExam(params: {
   student_id: string
   subject: string
@@ -113,44 +142,32 @@ export async function uploadExam(params: {
       },
     }
   }
-  // 后端 POST /exams/upload 接受 multipart/form-data
-  // 字段: student_id, subject, exam_name, total_score, actual_score, images[] (文件)
-  // 使用 uni.uploadFile 一次性上传所有图片
-  return new Promise<any>((resolve, reject) => {
-    uni.uploadFile({
-      url: '/api/v1/exams/upload',
-      filePath: params.images[0], // uni.uploadFile 单次只能传一个文件
-      name: 'images', // 后端参数名
-      formData: {
-        student_id: params.student_id,
-        subject: params.subject,
-        exam_name: params.exam_name || '',
-        total_score: String(params.total_score),
-        actual_score: params.actual_score != null ? String(params.actual_score) : '',
-      },
-      header: {
-        Authorization: `Bearer ${uni.getStorageSync('token') || ''}`,
-      },
-      success: (res: any) => {
-        if (res.statusCode === 200) {
-          resolve(JSON.parse(res.data))
-        } else if (res.statusCode === 401) {
-          uni.removeStorageSync('token')
-          uni.redirectTo({ url: '/pages/login/index' })
-          reject(new Error('未登录或登录已过期'))
-        } else {
-          try {
-            const err = JSON.parse(res.data)
-            reject(new Error(err.message || '上传失败'))
-          } catch {
-            reject(new Error('上传失败'))
-          }
-        }
-      },
-      fail: (err: any) => {
-        reject(new Error(err.errMsg || '上传失败'))
-      },
-    })
+
+  const token = uni.getStorageSync('token') || ''
+
+  // Step 1: 逐张上传图片，收集 URL
+  const imageUrls: string[] = []
+  for (let i = 0; i < params.images.length; i++) {
+    const url = await uploadSingleImage(params.images[i], token)
+    if (url) imageUrls.push(url)
+  }
+
+  if (imageUrls.length === 0) {
+    throw new Error('图片上传失败，请重试')
+  }
+
+  // Step 2: 调用试卷上传接口，传 URL 列表
+  return request({
+    url: '/exams/upload',
+    method: 'POST',
+    data: {
+      student_id: params.student_id,
+      subject: params.subject,
+      exam_name: params.exam_name || '',
+      total_score: params.total_score,
+      actual_score: params.actual_score,
+      image_urls: imageUrls,
+    },
   })
 }
 
