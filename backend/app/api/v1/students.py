@@ -99,3 +99,42 @@ async def update_student(
 
     await db.flush()
     return APIResponse(data=StudentResponse.model_validate(student))
+
+
+@router.get("/{student_id}", response_model=APIResponse[StudentResponse])
+async def get_student(
+    student_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取单个孩子详情。"""
+    result = await db.execute(select(Student).where(Student.id == student_id))
+    student = result.scalar_one_or_none()
+
+    if student is None:
+        raise NotFoundException("孩子档案不存在")
+    if student.user_id != current_user.id:
+        raise ForbiddenException("无权查看该孩子档案")
+
+    return APIResponse(data=StudentResponse.model_validate(student))
+
+
+@router.delete("/{student_id}", response_model=APIResponse)
+async def delete_student(
+    student_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """删除孩子档案。"""
+    result = await db.execute(select(Student).where(Student.id == student_id))
+    student = result.scalar_one_or_none()
+
+    if student is None:
+        raise NotFoundException("孩子档案不存在")
+    if student.user_id != current_user.id:
+        raise ForbiddenException("无权删除该孩子档案")
+
+    await db.delete(student)
+    await db.flush()
+
+    return APIResponse(message="已删除")

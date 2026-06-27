@@ -125,10 +125,16 @@ onMounted(async () => {
 })
 
 async function startPractice(w: Weakness) {
+  const studentStore = useStudentStore()
+  const sid = w.student_id || studentStore.currentStudent?.id
+  if (!sid) {
+    uni.showToast({ title: '请先选择孩子', icon: 'none' })
+    return
+  }
   uni.showLoading({ title: '正在生成题目...' })
   try {
     const res = await generatePractice({
-      student_id: w.student_id,
+      student_id: sid,
       weakness_id: w.weakness_id,
       mode: 'online',
     })

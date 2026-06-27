@@ -65,6 +65,33 @@ export async function getStudents() {
   return { code: res.code, data: res.data.students }
 }
 
+export async function createStudent(params: {
+  name: string
+  grade: string
+  school?: string
+  subjects: string[]
+}) {
+  if (USE_MOCK) {
+    await mock.delay(500)
+    return {
+      code: 0,
+      data: { id: 's-' + Date.now(), ...params, created_at: new Date().toISOString() },
+    }
+  }
+  return request({ url: '/students', method: 'POST', data: params })
+}
+
+export async function updateStudent(
+  studentId: string,
+  params: { name?: string; grade?: string; school?: string; subjects?: string[] }
+) {
+  if (USE_MOCK) {
+    await mock.delay(500)
+    return { code: 0, data: { id: studentId, ...params } }
+  }
+  return request({ url: `/students/${studentId}`, method: 'PUT', data: params })
+}
+
 // ===== 试卷上传 =====
 export async function uploadExam(params: {
   student_id: string
@@ -193,12 +220,17 @@ export async function getWeaknesses(studentId?: string) {
     return { code: 0, data: mock.mockWeaknessList }
   }
   // 后端 GET /weaknesses?student_id=xxx 必须传 student_id
-  // 返回: {code, data: {weaknesses: [...]}}
+  // 返回: {code, data: {weaknesses: [...]}}，每项不含 student_id
   const sid = studentId || uni.getStorageSync('currentStudentId') || ''
   const res = await request<{ weaknesses: any[] }>({
     url: `/weaknesses?student_id=${sid}`,
   })
-  return { code: res.code, data: res.data.weaknesses }
+  // 注入 student_id（后端不返回该字段，前端页面需要）
+  const list = (res.data.weaknesses || []).map(w => ({
+    ...w,
+    student_id: sid,
+  }))
+  return { code: res.code, data: list }
 }
 
 // ===== 标记已掌握 =====

@@ -119,7 +119,7 @@ function toggleApiMode(e: any) {
 }
 
 function goStudentManage() {
-  uni.showToast({ title: '孩子管理页面开发中', icon: 'none' })
+  uni.navigateTo({ url: '/pages/student/manage' })
 }
 
 function showAbout() {

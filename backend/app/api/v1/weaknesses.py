@@ -54,6 +54,7 @@ async def list_weaknesses(
             "weaknesses": [
                 {
                     "weakness_id": str(w.id),
+                    "student_id": str(w.student_id),
                     "knowledge_point": kp.name,
                     "star_rating": w.star_rating,
                     "reason": w.reason or "",

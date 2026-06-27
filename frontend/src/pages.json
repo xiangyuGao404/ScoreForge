@@ -59,6 +59,12 @@
       "style": {
         "navigationBarTitleText": "设置"
       }
+    },
+    {
+      "path": "pages/student/manage",
+      "style": {
+        "navigationBarTitleText": "孩子管理"
+      }
     }
   ],
   "globalStyle": {
