@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     OPENAI_API_BASE: str = "https://api.openai.com/v1"
     DEFAULT_AI_MODEL: str = "gpt-4o"
 
+    # Xiaomi TokenPlan API (Anthropic compatible)
+    XIAOMI_API_KEY: Optional[str] = None
+    XIAOMI_API_BASE: str = "https://token-plan-cn.xiaomimimo.com/anthropic"
+    XIAOMI_MODEL: str = "claude-3-5-sonnet-20241022"
+
+    # AI Provider: "openai" or "xiaomi"
+    AI_PROVIDER: str = "xiaomi"
+
     # User AI Key Encryption
     USER_KEY_ENCRYPTION_KEY: str = "dev-encryption-key-change-in-production"
 

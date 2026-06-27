@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"AI Provider: {settings.AI_PROVIDER}")
+    logger.info(f"Xiaomi API configured: {bool(settings.XIAOMI_API_KEY)}")
+    logger.info(f"OpenAI API configured: {bool(settings.OPENAI_API_KEY)}")
+    logger.info(f"CORS origins: {settings.ALLOWED_ORIGINS}")
     # Create upload and PDF directories
     import os
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
@@ -96,4 +100,27 @@ async def health_check():
         "status": "healthy",
         "version": settings.APP_VERSION,
         "debug": settings.DEBUG,
+    }
+
+
+@app.get("/ai-status")
+async def ai_status():
+    """Check AI service configuration status (no secrets exposed)."""
+    provider = settings.AI_PROVIDER.lower()
+    has_key = False
+    if provider == "xiaomi":
+        has_key = bool(settings.XIAOMI_API_KEY)
+    elif provider == "openai":
+        has_key = bool(settings.OPENAI_API_KEY)
+    else:
+        has_key = bool(settings.XIAOMI_API_KEY or settings.OPENAI_API_KEY)
+
+    return {
+        "provider": provider,
+        "model": settings.XIAOMI_MODEL if provider == "xiaomi" else settings.DEFAULT_AI_MODEL,
+        "api_configured": has_key,
+        "base_url": settings.XIAOMI_API_BASE if provider == "xiaomi" else settings.OPENAI_API_BASE,
+        "timeout_seconds": 60,
+        "max_retries": 2,
+        "fallback": "mock data on failure",
     }

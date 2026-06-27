@@ -375,3 +375,115 @@ frontend/
 - **R-2**：AI 服务无 API Key 返回 mock — 设计如此，非 bug
 - **S-5**：Prompt 注入防护未实现 — 需在 AI 服务层添加输入过滤
 - **S-8/S-9**：Nginx HTTPS 和静态文件鉴权 — 部署阶段配置
+
+---
+
+## V1.0-ai-integration — 2026-06-27
+
+### 小米 TokenPlan API 接入 + 联调准备
+
+**目标**：替换 Mock AI 服务，接入真实 Anthropic 兼容接口（小米 TokenPlan），完成联调准备。
+
+#### AI 服务接入
+
+| 项目 | 说明 |
+|------|------|
+| **API 地址** | `https://token-plan-cn.xiaomimimo.com/anthropic` |
+| **鉴权方式** | Bearer Token（Header: `Authorization: Bearer <Token>`） |
+| **模型** | `claude-3-5-sonnet-20241022`（Anthropic 兼容） |
+| **SDK** | `anthropic>=0.34.0`（新增依赖） |
+| **超时设置** | 60 秒 |
+| **重试机制** | 失败自动重试最多 2 次 |
+| **降级策略** | API 调用失败时返回 Mock 数据，确保前端流程不中断 |
+
+#### 代码变更
+
+| 文件 | 变更 |
+|------|------|
+| `requirements.txt` | 新增 `anthropic>=0.34.0` 依赖 |
+| `app/core/config.py` | 新增 `XIAOMI_API_KEY`、`XIAOMI_API_BASE`、`XIAOMI_MODEL`、`AI_PROVIDER` 配置 |
+| `app/services/ai_service.py` | **重写**：新增 `_AnthropicClient` 和 `_OpenAIClient` 封装，支持双 Provider 切换 |
+| `app/main.py` | 新增 `/ai-status` 端点（检查 AI 配置状态，不暴露密钥）；启动日志显示 AI Provider |
+| `.env.example` | 更新示例配置，添加小米 TokenPlan API 配置项 |
+| `.env` | 创建本地配置文件（已在 .gitignore 中） |
+
+#### AI 服务架构
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     AIService                           │
+├─────────────────────────────────────────────────────────┤
+│  _get_ai_client()                                       │
+│    ├─ AI_PROVIDER=xiaomi → _AnthropicClient (anthropic) │
+│    ├─ AI_PROVIDER=openai → _OpenAIClient (openai)       │
+│    └─ 无 Key → return None (fallback to mock)           │
+├─────────────────────────────────────────────────────────┤
+│  analyze_weaknesses()  ← 薄弱点分析                     │
+│  generate_questions()  ← 智能出题                       │
+│  assess_mastery()      ← 掌握度评估                     │
+├─────────────────────────────────────────────────────────┤
+│  错误处理：try/except → log error → return mock data    │
+│  重试：max_retries=2（SDK 内置）                        │
+│  超时：timeout=60s（SDK 内置）                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### CORS 配置
+
+已配置允许以下前端开发地址跨域访问：
+- `http://localhost:5173`（Vite 默认）
+- `http://localhost:3000`（React 默认）
+- `http://localhost:8080`（Vue CLI 默认）
+
+配置方式：`.env` 文件中 `ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:8080`
+
+#### API 端点清单（联调用）
+
+| # | Endpoint | Method | 说明 | AI 依赖 |
+|---|----------|--------|------|---------|
+| 1 | `/` | GET | 服务状态 | 无 |
+| 2 | `/health` | GET | 健康检查 | 无 |
+| 3 | `/ai-status` | GET | AI 配置状态 | 无 |
+| 4 | `/docs` | GET | Swagger 文档 | 无 |
+| 5 | `/api/v1/auth/send-code` | POST | 发送验证码 | 无 |
+| 6 | `/api/v1/auth/login` | POST | 登录 | 无 |
+| 7 | `/api/v1/students` | GET/POST | 学生档案 | 无 |
+| 8 | `/api/v1/exams/upload` | POST | 上传试卷 | OCR mock |
+| 9 | `/api/v1/exams/{id}/recognition` | GET | 识别结果 | 无 |
+| 10 | `/api/v1/exams/{id}/confirm` | POST | 确认识别 | **AI 分析** |
+| 11 | `/api/v1/exams/{id}/analysis` | GET | 薄弱点结果 | 无 |
+| 12 | `/api/v1/practice/generate` | POST | 生成练习题 | **AI 出题** |
+| 13 | `/api/v1/practice/{id}/questions` | GET | 题目列表 | 无 |
+| 14 | `/api/v1/practice/{id}/submit` | POST | 提交结果 | 无 |
+| 15 | `/api/v1/practice/{id}/assessment` | GET | 掌握度评估 | **AI 评估** |
+| 16 | `/api/v1/pdf/generate` | POST | 生成 PDF | 无 |
+| 17 | `/api/v1/pdf/{id}/download` | GET | 下载 PDF | 无 |
+
+#### 环境变量说明
+
+```bash
+# AI Provider 切换
+AI_PROVIDER=xiaomi          # 使用小米 TokenPlan
+# AI_PROVIDER=openai        # 使用 OpenAI API
+
+# 小米 TokenPlan（必须设置）
+XIAOMI_API_KEY=tp-xxx       # Token（禁止硬编码，仅在 .env 中）
+XIAOMI_API_BASE=https://token-plan-cn.xiaomimimo.com/anthropic
+XIAOMI_MODEL=claude-3-5-sonnet-20241022
+
+# CORS（必须设置，逗号分隔）
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:8080
+```
+
+#### 自测清单
+
+- [ ] 启动服务：`cd backend && uvicorn app.main:app --reload --port 8000`
+- [ ] 访问 `http://localhost:8000/health` 确认服务正常
+- [ ] 访问 `http://localhost:8000/ai-status` 确认 AI 配置正确
+- [ ] 访问 `http://localhost:8000/docs` 查看 Swagger 文档
+- [ ] 测试登录流程：`POST /api/v1/auth/send-code` → `POST /api/v1/auth/login`
+- [ ] 测试上传试卷：`POST /api/v1/exams/upload`
+- [ ] 测试确认分析：`POST /api/v1/exams/{id}/confirm`（触发 AI 分析）
+- [ ] 测试生成题目：`POST /api/v1/practice/generate`（触发 AI 出题）
+- [ ] 测试掌握度评估：`POST /api/v1/practice/{id}/submit` → `GET /api/v1/practice/{id}/assessment`
+- [ ] 测试 PDF 生成：`POST /api/v1/pdf/generate` → `GET /api/v1/pdf/{id}/download`
