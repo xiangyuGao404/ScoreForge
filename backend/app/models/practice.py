@@ -34,6 +34,13 @@ class MasteryStatus(str, PyEnum):
     MASTERED = "mastered"
 
 
+class PracticeStatus(str, PyEnum):
+    GENERATING = "generating"
+    READY = "ready"
+    ASSESSING = "assessing"
+    ASSESSED = "assessed"
+
+
 class PracticeSession(Base):
     __tablename__ = "practice_sessions"
 
@@ -41,6 +48,7 @@ class PracticeSession(Base):
     student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id", ondelete="CASCADE"), index=True)
     weakness_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("weaknesses.id", ondelete="CASCADE"), index=True)
     mode: Mapped[PracticeMode] = mapped_column(Enum(PracticeMode), default=PracticeMode.ONLINE)
+    status: Mapped[PracticeStatus] = mapped_column(Enum(PracticeStatus), default=PracticeStatus.GENERATING)
     question_count: Mapped[int] = mapped_column(Integer, default=5)
     correct_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
     mastery_status: Mapped[MasteryStatus] = mapped_column(Enum(MasteryStatus), default=MasteryStatus.PRACTICING)
