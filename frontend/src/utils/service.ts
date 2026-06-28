@@ -336,7 +336,8 @@ export async function getAssessment(sessionId: string) {
   return request({ url: `/practice/${sessionId}/assessment` })
 }
 
-// ===== 教师对话（后端无此接口，保留 mock） =====
+// ===== 教师对话 =====
+// 后端 chat/send 同步返回 AI 回复（约 5-10 秒），无异步化
 export async function sendChatMessage(params: {
   student_id: string
   teacher_role: string
@@ -354,18 +355,13 @@ export async function sendChatMessage(params: {
       },
     }
   }
-  // 后端暂无 chat 接口，降级为 mock
-  console.warn('Chat API not implemented in backend, using mock')
-  await mock.delay(1000)
-  return {
-    code: 0,
-    data: {
-      id: 'msg-' + Date.now(),
-      role: 'assistant' as const,
-      content: '教师团功能正在开发中，敬请期待！',
-      created_at: new Date().toISOString(),
-    },
-  }
+  // chat/send 同步阻塞约 5-10 秒，设 60s 超时
+  return request({
+    url: '/chat/send',
+    method: 'POST',
+    timeout: 60000,
+    data: params,
+  })
 }
 
 export async function getChatHistory(studentId: string, teacherRole: string) {
@@ -373,8 +369,11 @@ export async function getChatHistory(studentId: string, teacherRole: string) {
     await mock.delay(300)
     return { code: 0, data: mock.mockChatMessages }
   }
-  // 后端暂无 chat 接口，降级为空
-  return { code: 0, data: [] }
+  // 后端返回 {data: {messages: [...]}}，前端期望 data 直接是数组
+  const res = await request<{ messages: any[] }>({
+    url: `/chat/history?student_id=${studentId}&teacher_role=${teacherRole}`,
+  })
+  return { code: res.code, data: res.data?.messages || [] }
 }
 
 // ===== PDF =====
