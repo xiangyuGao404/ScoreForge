@@ -4,6 +4,7 @@
     <view v-if="loading" class="loading-state">
       <view class="loading-spinner"></view>
       <text class="loading-text">AI 正在评估掌握程度...</text>
+      <text class="loading-sub">预计 10-20 秒，请耐心等待</text>
     </view>
 
     <view v-else>
@@ -70,6 +71,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { getAssessment, masterWeakness } from '../../utils/service'
+import { poll } from '../../utils/poll'
 
 const sessionId = ref('')
 const weaknessName = ref('')
@@ -94,12 +96,23 @@ onMounted(async () => {
   weaknessName.value = decodeURIComponent(currentPage?.options?.weaknessName || '')
   weaknessId.value = currentPage?.options?.weaknessId || ''
 
-  const res = await getAssessment(sessionId.value)
-  if (res.code === 0) {
-    assessment.value = res.data
-    history.value = res.data.history || []
+  try {
+    // 轮询直到 status === 'assessed'（后端异步评估）
+    const res = await poll(
+      () => getAssessment(sessionId.value),
+      (data: any) => data?.code === 0 && data?.data?.status === 'assessed',
+      2500,
+      60
+    )
+    if (res.code === 0) {
+      assessment.value = res.data
+      history.value = res.data.history || []
+    }
+  } catch (e: any) {
+    uni.showToast({ title: e.message || '评估超时，请重试', icon: 'none' })
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 })
 
 function goHome() {

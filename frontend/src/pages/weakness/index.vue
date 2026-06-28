@@ -131,8 +131,10 @@ async function startPractice(w: Weakness) {
     uni.showToast({ title: '请先选择孩子', icon: 'none' })
     return
   }
-  uni.showLoading({ title: '正在生成题目...' })
+  uni.showLoading({ title: '提交中...', mask: true })
+
   try {
+    // generatePractice 现在立即返回 status=generating（后端异步出题）
     const res = await generatePractice({
       student_id: sid,
       weakness_id: w.weakness_id,
@@ -140,9 +142,12 @@ async function startPractice(w: Weakness) {
     })
     uni.hideLoading()
     if (res.code === 0) {
-      uni.navigateTo({
-        url: `/pages/practice/index?sessionId=${res.data.session_id}&weaknessName=${encodeURIComponent(w.knowledge_point)}`,
-      })
+      uni.showToast({ title: '题目生成中', icon: 'none' })
+      setTimeout(() => {
+        uni.navigateTo({
+          url: `/pages/practice/index?sessionId=${res.data.session_id}&weaknessName=${encodeURIComponent(w.knowledge_point)}&weaknessId=${w.weakness_id}`,
+        })
+      }, 500)
     }
   } catch (e: any) {
     uni.hideLoading()

@@ -4,7 +4,7 @@
     <view v-if="loading" class="loading-state">
       <view class="loading-spinner"></view>
       <text class="loading-text">AI 正在分析薄弱点...</text>
-      <text class="loading-sub">结合历史数据，为你定制提分方案</text>
+      <text class="loading-sub">预计 30-60 秒，请耐心等待</text>
     </view>
 
     <!-- 分析结果 -->
@@ -83,6 +83,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { getAnalysis, generatePractice } from '../../utils/service'
 import { useStudentStore } from '../../store/student'
+import { poll } from '../../utils/poll'
 
 interface Weakness {
   weakness_id: string
@@ -136,21 +137,29 @@ onMounted(async () => {
 async function loadAnalysis() {
   loading.value = true
   try {
-    const res = await getAnalysis(examId.value)
+    // 轮询直到 status === 'analyzed'（后端异步分析）
+    const res = await poll(
+      () => getAnalysis(examId.value),
+      (data: any) => data?.code === 0 && data?.data?.status === 'analyzed',
+      2500,
+      60 // 约 2.5 分钟
+    )
     if (res.code === 0) {
       analysis.value = res.data
-      weaknesses.value = res.data.weaknesses
+      weaknesses.value = res.data.weaknesses || []
     }
   } catch (e: any) {
-    uni.showToast({ title: e.message || '加载失败', icon: 'none' })
+    uni.showToast({ title: e.message || '分析超时，请重试', icon: 'none' })
   } finally {
     loading.value = false
   }
 }
 
 async function startPractice(w: Weakness) {
-  uni.showLoading({ title: '正在生成题目...' })
+  uni.showLoading({ title: '提交中...', mask: true })
+
   try {
+    // generatePractice 现在立即返回 status=generating（后端异步出题）
     const res = await generatePractice({
       student_id: currentStudentId.value,
       weakness_id: w.weakness_id,
@@ -159,9 +168,12 @@ async function startPractice(w: Weakness) {
     })
     uni.hideLoading()
     if (res.code === 0) {
-      uni.navigateTo({
-        url: `/pages/practice/index?sessionId=${res.data.session_id}&weaknessName=${encodeURIComponent(w.knowledge_point)}`,
-      })
+      uni.showToast({ title: '题目生成中', icon: 'none' })
+      setTimeout(() => {
+        uni.navigateTo({
+          url: `/pages/practice/index?sessionId=${res.data.session_id}&weaknessName=${encodeURIComponent(w.knowledge_point)}&weaknessId=${w.weakness_id}`,
+        })
+      }, 500)
     }
   } catch (e: any) {
     uni.hideLoading()

@@ -131,14 +131,14 @@ export async function uploadExam(params: {
   images: string[]
 }) {
   if (USE_MOCK) {
-    await mock.delay(1500)
+    await mock.delay(800)
     return {
       code: 0,
       message: 'success',
       data: {
         exam_id: 'exam-001',
         status: 'recognizing',
-        message: '试卷正在识别中，预计15秒完成',
+        message: '试卷已上传，正在识别',
       },
     }
   }
@@ -156,12 +156,10 @@ export async function uploadExam(params: {
     throw new Error('图片上传失败，请重试')
   }
 
-  // Step 2: 调用 upload-by-urls 接口，传 URL 列表
-  // 后端同步执行 AI 识别，可能需要 30-120 秒，设置 180s 超时
+  // Step 2: 调用 upload-by-urls（后端异步识别，立即返回 status=recognizing）
   return request({
     url: '/exams/upload-by-urls',
     method: 'POST',
-    timeout: 180000,
     data: {
       student_id: params.student_id,
       subject: params.subject,
@@ -207,6 +205,7 @@ export async function confirmRecognition(
       data: { exam_id: examId, status: 'analyzing' },
     }
   }
+  // 后端异步分析，立即返回 status=analyzing
   return request({
     url: `/exams/${examId}/confirm`,
     method: 'POST',

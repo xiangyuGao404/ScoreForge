@@ -4,6 +4,7 @@
     <view v-if="loading" class="loading-state">
       <view class="loading-spinner"></view>
       <text class="loading-text">正在生成题目...</text>
+      <text class="loading-sub">预计 10-20 秒，请耐心等待</text>
     </view>
 
     <view v-else>
@@ -98,6 +99,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { getPracticeQuestions, submitPracticeResult } from '../../utils/service'
 import { latexToText } from '../../utils/math'
+import { poll } from '../../utils/poll'
 
 interface Question {
   question_no: number
@@ -129,13 +131,24 @@ onMounted(async () => {
   weaknessName.value = decodeURIComponent(currentPage?.options?.weaknessName || '函数基础概念')
   weaknessId.value = currentPage?.options?.weaknessId || ''
 
-  const res = await getPracticeQuestions(sessionId.value)
-  if (res.code === 0) {
-    questions.value = res.data.questions
-    answers.value = new Array(questions.value.length).fill('')
-    results.value = new Array(questions.value.length).fill(false)
+  try {
+    // 轮询直到 status === 'ready'（后端异步出题）
+    const res = await poll(
+      () => getPracticeQuestions(sessionId.value),
+      (data: any) => data?.code === 0 && data?.data?.status === 'ready' && (data?.data?.questions?.length || 0) > 0,
+      2500,
+      60
+    )
+    if (res.code === 0) {
+      questions.value = res.data.questions
+      answers.value = new Array(questions.value.length).fill('')
+      results.value = new Array(questions.value.length).fill(false)
+    }
+  } catch (e: any) {
+    uni.showToast({ title: e.message || '题目生成超时，请重试', icon: 'none' })
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 })
 
 function selectAnswer(opt: string) {
@@ -177,18 +190,22 @@ function nextQuestion() {
 }
 
 async function finishPractice() {
-  uni.showLoading({ title: '正在评估...' })
+  uni.showLoading({ title: '提交中...', mask: true })
   try {
     const submitResults = questions.value.map((q, i) => ({
       question_no: q.question_no,
       student_answer: answers.value[i],
       is_correct: results.value[i],
     }))
+    // submit 现在立即返回 status=assessing（后端异步评估）
     await submitPracticeResult(sessionId.value, submitResults)
     uni.hideLoading()
-    uni.redirectTo({
-      url: `/pages/practice/result?sessionId=${sessionId.value}&weaknessName=${encodeURIComponent(weaknessName.value)}&weaknessId=${weaknessId.value}`,
-    })
+    uni.showToast({ title: '正在评估掌握度', icon: 'none' })
+    setTimeout(() => {
+      uni.redirectTo({
+        url: `/pages/practice/result?sessionId=${sessionId.value}&weaknessName=${encodeURIComponent(weaknessName.value)}&weaknessId=${weaknessId.value}`,
+      })
+    }, 500)
   } catch (e: any) {
     uni.hideLoading()
     uni.showToast({ title: e.message || '提交失败', icon: 'none' })

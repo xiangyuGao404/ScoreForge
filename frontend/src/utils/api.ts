@@ -42,7 +42,12 @@ export function request<T = any>(options: RequestOptions): Promise<ApiResponse<T
         ...options.header,
       },
       success: (res: any) => {
+        console.log('[api] statusCode:', res.statusCode, 'data type:', typeof res.data)
+        if (typeof res.data === 'string') {
+          try { res.data = JSON.parse(res.data) } catch {}
+        }
         if (res.statusCode === 200) {
+          console.log('[api] response code:', res.data?.code, 'has data:', !!res.data?.data)
           resolve(res.data as ApiResponse<T>)
         } else if (res.statusCode === 401) {
           // 任务 11：401 时清理完整登录状态

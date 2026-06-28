@@ -4,7 +4,7 @@
     <view v-if="loading" class="loading-state">
       <view class="loading-spinner"></view>
       <text class="loading-text">AI 正在识别试卷...</text>
-      <text class="loading-sub">预计需要 10-15 秒</text>
+      <text class="loading-sub">预计需要 15-30 秒，请耐心等待</text>
     </view>
 
     <!-- 识别结果 -->
@@ -40,55 +40,31 @@
           v-for="q in questions"
           :key="q.question_no"
           class="question-card"
-          :class="{
-            'low-confidence': q.confidence < 0.7,
-            correct: q.is_correct,
-            wrong: !q.is_correct,
-          }"
         >
           <view class="q-header">
-            <view class="q-no-badge" :class="{ correct: q.is_correct, wrong: !q.is_correct }">
+            <view class="q-no-badge">
               <text class="q-no">{{ q.question_no }}</text>
             </view>
             <view class="q-status">
-              <text
-                class="status-tag"
-                :class="{ correct: q.is_correct, wrong: !q.is_correct }"
-              >
+              <text class="status-tag" :style="{background: q.is_correct ? '#D1FAE5' : '#FEE2E2', color: q.is_correct ? '#065F46' : '#991B1B'}">
                 {{ q.is_correct ? '✓ 正确' : '✗ 错误' }}
               </text>
-              <view v-if="q.confidence < 0.7" class="confidence-warn">
-                <text class="warn-text">⚠️ 置信度 {{ (q.confidence * 100).toFixed(0) }}%，请核实</text>
-              </view>
             </view>
           </view>
 
-          <text class="q-content">{{ latexToText(q.question_content) }}</text>
+          <view class="q-content">{{ latexToText(q.question_content) }}</view>
 
           <view class="q-score-row">
             <text class="score-label">得分：</text>
-            <input
-              v-model="q.score_got"
-              type="digit"
-              class="score-input"
-              @blur="validateScore(q)"
-            />
-            <text class="score-total">/ {{ q.score_total }}</text>
+            <text class="score-val">{{ q.score_got }}</text>
+            <text class="score-total"> / {{ q.score_total }}</text>
           </view>
 
           <view class="q-actions">
-            <view
-              class="action-btn"
-              :class="{ active: q.is_correct }"
-              @tap="setCorrect(q, true)"
-            >
+            <view class="action-btn" :style="{background: q.is_correct ? '#D1FAE5' : '#F8FAFC', borderColor: q.is_correct ? '#10B981' : '#E2E8F0'}" @tap="setCorrect(q, true)">
               <text>✓ 正确</text>
             </view>
-            <view
-              class="action-btn wrong"
-              :class="{ active: !q.is_correct }"
-              @tap="setCorrect(q, false)"
-            >
+            <view class="action-btn" :style="{background: !q.is_correct ? '#FEE2E2' : '#F8FAFC', borderColor: !q.is_correct ? '#EF4444' : '#E2E8F0'}" @tap="setCorrect(q, false)">
               <text>✗ 错误</text>
             </view>
           </view>
@@ -109,6 +85,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { getRecognition, confirmRecognition } from '../../utils/service'
 import { latexToText } from '../../utils/math'
+import { poll } from '../../utils/poll'
 
 interface Question {
   question_no: number
@@ -140,64 +117,67 @@ onMounted(() => {
 async function loadRecognition() {
   loading.value = true
   try {
-    const res = await getRecognition(examId.value)
-    if (res.code === 0) {
-      // 标准化字段：后端可能返回 null，需给默认值
-      questions.value = (res.data.questions || []).map((q: any) => ({
-        question_no: q.question_no,
-        question_content: q.question_content || `第${q.question_no}题（内容识别中）`,
-        is_correct: q.is_correct ?? false,
-        score_got: q.score_got ?? 0,
-        score_total: q.score_total ?? 0,
-        confidence: q.confidence ?? 0,
-        parent_verified: q.parent_verified ?? false,
-      }))
-    }
+    // 轮询直到 status === 'recognized'（后端异步识别）
+    const res = await poll(
+      () => getRecognition(examId.value),
+      (data: any) => data?.code === 0 && data?.data?.status === 'recognized' && (data?.data?.questions?.length || 0) > 0,
+      2500,
+      60 // 约 2.5 分钟
+    )
+
+    const questionList = res?.data?.questions || []
+    // 用 splice 确保 Vue 响应式触发
+    const mapped = questionList.map((q: any, i: number) => ({
+      question_no: q.question_no ?? i + 1,
+      question_content: String(q.question_content || ''),
+      is_correct: !!q.is_correct,
+      score_got: Number(q.score_got) || 0,
+      score_total: Number(q.score_total) || 0,
+      confidence: Number(q.confidence) || 0,
+      parent_verified: !!q.parent_verified,
+    }))
+    questions.value.splice(0, questions.value.length, ...mapped)
   } catch (e: any) {
-    uni.showToast({ title: e.message || '加载失败', icon: 'none' })
+    console.error('[confirm] load error:', e)
+    uni.showToast({ title: e.message || '识别超时，请重试', icon: 'none' })
   } finally {
     loading.value = false
   }
 }
 
 function setCorrect(q: Question, val: boolean) {
-  q.is_correct = val
-  if (val) {
-    q.score_got = q.score_total
-  } else {
-    q.score_got = 0
+  try {
+    console.log('[setCorrect] before:', q.question_no, 'is_correct:', q.is_correct, 'score_got:', q.score_got)
+    q.is_correct = val
+    q.score_got = val ? q.score_total : 0
+    q.parent_verified = true
+    console.log('[setCorrect] after:', q.question_no, 'is_correct:', q.is_correct, 'score_got:', q.score_got)
+  } catch (e) {
+    console.error('[setCorrect] error:', e)
   }
-  q.parent_verified = true
 }
 
-function validateScore(q: Question) {
-  const score = Number(q.score_got)
-  if (isNaN(score) || score < 0) q.score_got = 0
-  if (score > q.score_total) q.score_got = q.score_total
-  q.is_correct = Number(q.score_got) >= Number(q.score_total)
-}
 
 async function handleConfirm() {
   submitting.value = true
+  uni.showLoading({ title: '提交中...', mask: true })
+
+  const payload = questions.value.map(q => ({
+    question_no: q.question_no,
+    is_correct: !!q.is_correct,
+    score_got: Number(q.score_got) || 0,
+    parent_verified: true,
+  }))
+
   try {
-    const res = await confirmRecognition(
-      examId.value,
-      questions.value.map(q => ({
-        question_no: q.question_no,
-        is_correct: !!q.is_correct, // 确保是 boolean，不是 null
-        score_got: Number(q.score_got) || 0,
-        parent_verified: true,
-      }))
-    )
-    if (res.code === 0) {
-      uni.showToast({ title: '提交成功', icon: 'success' })
-      setTimeout(() => {
-        uni.redirectTo({
-          url: `/pages/exam/analysis?examId=${examId.value}`,
-        })
-      }, 500)
-    }
+    await confirmRecognition(examId.value, payload)
+    uni.hideLoading()
+    uni.showToast({ title: '已提交，正在分析', icon: 'none' })
+    setTimeout(() => {
+      uni.redirectTo({ url: `/pages/exam/analysis?examId=${examId.value}` })
+    }, 500)
   } catch (e: any) {
+    uni.hideLoading()
     uni.showToast({ title: e.message || '提交失败', icon: 'none' })
   } finally {
     submitting.value = false

@@ -690,3 +690,41 @@ cd frontend && VITE_USE_MOCK=false npm run dev:h5
 | `$\frac{1}{2}$` | `1/2` |
 | `$\sqrt{x}$` | `√(x)` |
 | `$x_1, x_2$` | `x₁, x₂` |
+
+---
+
+## V1.0-ai-async-frontend — 2026-06-28
+
+### AI 异步化前端改造（F-1~F-8 全部完成）
+
+依据 [AI异步化改造与opencode切换](AI异步化改造与opencode切换.md) 中的前端任务逐项实现。核心思路：所有 AI 调用改为"提交即返回 + 轮询结果"，前端不再被 AI 耗时阻塞。
+
+#### 新增文件
+
+- `frontend/src/utils/poll.ts` — 统一轮询工具，`poll(fn, check, interval, maxAttempts)`
+
+#### 任务清单
+
+| # | 任务 | 文件 | 说明 |
+|---|------|------|------|
+| F-1 | 新建 poll.ts 轮询工具 | `utils/poll.ts` | 首次立即执行，后续按间隔轮询，超时 60 次（约 2.5 分钟） |
+| F-2 | upload 提交后立即跳 confirm | `pages/upload/index.vue` + `service.ts` | uploadExam 去掉 5 分钟超时，后端立即返回 status=recognizing，前端立即跳确认页 |
+| F-3 | confirm 页轮询识别结果 | `pages/exam/confirm.vue` | 用 `poll()` 轮询 `getRecognition`，直到 `status===recognized` 且题目数>0 |
+| F-4 | confirm 提交改为 await + 跳转 | `pages/exam/confirm.vue` + `service.ts` | 去掉 fire-and-forget，正常 await（后端立即返回 analyzing）+ 跳 analysis 页 |
+| F-5 | analysis 页轮询分析结果 | `pages/exam/analysis.vue` | 用 `poll()` 轮询 `getAnalysis`，直到 `status===analyzed` |
+| F-6 | practice 答题页轮询题目 | `pages/practice/index.vue` | 用 `poll()` 轮询 `getPracticeQuestions`，直到 `status===ready` |
+| F-7 | practice 提交 + result 页轮询评估 | `pages/practice/index.vue` + `result.vue` | submit 立即返回 assessing + 跳 result；result 页轮询 `getAssessment` 直到 `status===assessed` |
+| F-8 | 移除 Promise.race 超时兜底 | `pages/exam/analysis.vue` + `pages/weakness/index.vue` | generatePractice 现在立即返回 session_id（generating），直接跳答题页轮询 |
+
+#### 改造前后对比
+
+| 操作 | 改造前 | 改造后 |
+|------|--------|--------|
+| 上传试卷 | 等 AI 识别 5 分钟，超时报错 | 上传后 1 秒内跳确认页，确认页轮询显示"识别中" |
+| 确认提交 | fire-and-forget，永远拿不到结果 | 立即跳分析页，分析页轮询显示"分析中" |
+| 开始练习 | Promise.race 10 秒超时，题目丢失 | 立即跳答题页，答题页轮询显示"生成中" |
+| 提交答案 | 等 AI 评估，超时报错 | 立即跳结果页，结果页轮询显示"评估中" |
+
+#### 审查入口保证
+
+上传后立即返回 `exam_id` 并跳 confirm 页 → confirm 页是常驻审查入口，轮询直到识别完成 → 家长逐题审查对错 → 确认提交。带 `exam_id` 重新进入 confirm 页也能再次看到识别结果。
